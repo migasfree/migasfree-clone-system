@@ -73,6 +73,7 @@ QEMU_CMD="sudo qemu-system-x86_64 \
     -m $TEST_RAM \
     -enable-kvm \
     -cpu host \
+    -net nic,model=virtio -net user \
     -drive file=$TEST_IMG,format=raw"
 
 if [ "$TEST_UEFI" = "true" ]; then
