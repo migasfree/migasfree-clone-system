@@ -28,4 +28,7 @@ tzdata
 grub
 grub-efi
 grub-bios
-eudev
+udev
+udev-openrc
+wget
+qemu-block-curl

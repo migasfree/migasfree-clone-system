@@ -61,12 +61,16 @@ chroot $MOUNTDIR /bin/sh -c "
 "
 
 
+echo "[+] Available services in /etc/init.d/:"
+chroot $MOUNTDIR ls /etc/init.d/
+
 echo "[+] Services on boot"
 chroot $MOUNTDIR /bin/sh -c "
 rc-update add networking boot
 rc-update add localmount boot
-rc-update add udev sysinit
-rc-update add udev-trigger sysinit
+# Try common udev service names
+[ -f /etc/init.d/udev ] && rc-update add udev sysinit
+[ -f /etc/init.d/udev-trigger ] && rc-update add udev-trigger sysinit
 "
 
 echo "[+] User root customize"

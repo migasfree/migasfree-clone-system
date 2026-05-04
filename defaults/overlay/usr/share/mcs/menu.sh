@@ -221,7 +221,7 @@ network_clone_menu() {
     URL_PATH="http://$SERVER_URL/pool/images/"
     
     # Fetch remote image list
-    wget -q -O - "${URL_PATH}" | grep -o 'href="[^"]*"' |  grep ".qcow2" | cut -d '"' -f 2 | nl -w1 -s' ' | sed 's/\(.*\) \(.*\)/\1 "\2"/' > $TEMPORAL_FILE
+    /usr/bin/wget -q -O - "${URL_PATH}" | grep -o 'href="[^"]*"' |  grep ".qcow2" | cut -d '"' -f 2 | nl -w1 -s' ' | sed 's/\(.*\) \(.*\)/\1 "\2"/' > $TEMPORAL_FILE
 
     if [ ! -s "$TEMPORAL_FILE" ]; then
         show_msg "Network Clone" "Error" "No images found on the server:\n$URL_PATH"
@@ -238,15 +238,25 @@ network_clone_menu() {
        return
     fi
 
+    # Clean disk name (remove size)
+    DISK=$(echo "$DISK" | awk '{print $1}')
+
+    # Check if FILE is already a full URL
+    if [[ $FILE == http* ]]; then
+        DOWNLOAD_URL="$FILE"
+    else
+        DOWNLOAD_URL="$URL_PATH$FILE"
+    fi
+
     show_confirm "Network Clone" "Start direct streaming?" "\nFROM: $FILE\nTO: /dev/$DISK\n\nWARNING: All data on /dev/$DISK will be lost!"
     if [[ $? -eq 0 ]]; then
         clear
         echo "[+] Starting direct Network Clone..."
-        echo "[+] Source: $URL_PATH$FILE"
+        echo "[+] Source: $DOWNLOAD_URL"
         echo "[+] Target: /dev/$DISK"
         echo ""
-        # Direct stream: wget -> qemu-img convert
-        wget -qO- "$URL_PATH$FILE" | qemu-img convert -p -f qcow2 -O raw - "/dev/$DISK"
+        # Direct conversion from URL (User-Agent spoofing removed as it's unsupported and no longer needed)
+        qemu-img convert -p --image-opts driver=http,url="$DOWNLOAD_URL" -O raw "/dev/$DISK"
         
         if [ $? -eq 0 ]; then
             show_msg "Network Clone" "Completed!" "Successfully cloned $FILE to /dev/$DISK"
@@ -290,11 +300,18 @@ download_image() {
         return
     fi
 
+    # Check if FILE is already a full URL
+    if [[ $FILE == http* ]]; then
+        DOWNLOAD_URL="$FILE"
+    else
+        DOWNLOAD_URL="$URL_PATH$FILE"
+    fi
+
     if [ -f "$IMAGES_DIR/$FILE" ]; then
         show_msg "Images" "Error" "$FILE exists."
     else
         clear
-        wget "$URL_PATH/$FILE" -P "$IMAGES_DIR"
+        /usr/bin/wget "$DOWNLOAD_URL" -P "$IMAGES_DIR"
         if [ $? = 0 ]
         then
             dialog --msgbox "Download $FILE completed!" 10 50
