@@ -1,0 +1,3 @@
+LABEL=MCS_ROOT / ext4 rw,relatime 0 1
+LABEL=MCS_EFI /boot/efi vfat defaults 0 0
+LABEL=MCS_DATA /mcsdata ext4 defaults 0 0

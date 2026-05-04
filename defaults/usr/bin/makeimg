@@ -1,0 +1,115 @@
+#!/bin/sh
+#set -e
+
+MOUNTDIR=/mnt
+ARTIFACTSDIR=/artifacts
+
+ARCH=x86_64
+VERSION_ROOTFS=$(awk -F= '/VERSION_ID/ {split($2,a,"."); print a[1]"."a[2]}' /etc/os-release)
+RELEASE_ROOTFS=$(awk -F= '/VERSION_ID/ {split($2,a,"."); print a[3]}' /etc/os-release)
+MINIROOT="alpine-minirootfs-${VERSION_ROOTFS}.${RELEASE_ROOTFS}-${ARCH}.tar.gz"
+
+
+download_rootfs() {
+    local base_url="https://dl-cdn.alpinelinux.org/alpine/v${VERSION_ROOTFS}/releases/${ARCH}"
+    local file_url="${base_url}/${MINIROOT}"
+    if ! [ -f $MINIROOT ]
+    then
+      echo "[+] Descargando Alpine rootfs"
+      wget "$file_url"
+      echo "    [done]"
+    fi
+}
+
+mkdir -p ${ARTIFACTSDIR}
+cd ${ARTIFACTSDIR}
+
+echo "[+] Loop device..."
+losetup -a| grep $LOOPDEV
+
+
+mkdir -p $MOUNTDIR
+mount "${LOOPDEV}p3" $MOUNTDIR
+
+download_rootfs
+
+
+echo "[+] Creating miniroot file system..."
+tar -xzf "$MINIROOT" -C "$MOUNTDIR"
+
+mount -t proc /proc $MOUNTDIR/proc
+mount -t sysfs /sys $MOUNTDIR/sys
+mount --bind /dev $MOUNTDIR/dev
+
+
+mkdir $MOUNTDIR/apks
+mount --bind /apks $MOUNTDIR/apks/
+echo "[+] Instalando paquetes..."
+chroot $MOUNTDIR /bin/sh -c "
+  apk add --allow-untrusted /apks/*.apk
+"
+umount $MOUNTDIR/apks/
+rmdir $MOUNTDIR/apks/
+
+
+echo "[+] Installing GRUB on BIOS & UEFI..."
+chroot $MOUNTDIR /bin/sh -c "
+  mkdir -p /boot/efi
+  mount ${LOOPDEV}p1 /boot/efi
+  grub-install --target=i386-pc --boot-directory=/boot ${LOOPDEV}  #  BIOS
+  grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot --removable  #  UEFI
+"
+
+
+echo "[+] Services on boot"
+chroot $MOUNTDIR /bin/sh -c "
+rc-update add networking boot
+rc-update add localmount boot
+"
+
+echo "[+] User root customize"
+chroot $MOUNTDIR /bin/sh -c "
+  sed -i 's/^root:[^:]*:/root::/' /etc/shadow
+"
+
+echo "[+] Customize"
+rsync -av "/overlay/" "$MOUNTDIR"
+echo ${MCS_VERSION} > "$MOUNTDIR/usr/share/mcs/VERSION"
+
+
+echo "[+] MCS_DATA"
+mkdir $MOUNTDIR/mcsdata
+mount ${LOOPDEV}p4 $MOUNTDIR/mcsdata
+mkdir $MOUNTDIR/mcsdata/images
+touch $MOUNTDIR/mcsdata/firstrun
+
+# Update default config with build variables
+sed -i "s/server: .*/server: $SERVER/" $MOUNTDIR/usr/share/mcs/config.yml
+sed -i "s/keymap: .*/keymap: $KEYMAP/" $MOUNTDIR/usr/share/mcs/config.yml
+
+cp $MOUNTDIR/usr/share/mcs/config.yml $MOUNTDIR/mcsdata/config.yml
+umount $MOUNTDIR/mcsdata
+
+
+echo "[+] Cleaning..."
+chroot $MOUNTDIR /bin/sh -c "
+apk cache clean
+truncate -s 0 /var/log/*.log
+rm -rf /tmp/*
+"
+
+umount -l "$MOUNTDIR/dev"
+umount -l "$MOUNTDIR/proc"
+umount -l "$MOUNTDIR/sys"
+umount -l "$MOUNTDIR/boot/efi" || true
+umount "$MOUNTDIR"
+
+
+
+echo "[+] Finalizing ${IMG:0:-4}.iso..."
+if [ -f "${ARTIFACTSDIR}/${IMG:0:-4}.iso" ]
+then
+    rm "${ARTIFACTSDIR}/${IMG:0:-4}.iso"
+fi
+mv "${ARTIFACTSDIR}/${IMG}" "${ARTIFACTSDIR}/${IMG:0:-4}.iso"
+echo "[✔] Completed"
