@@ -103,8 +103,8 @@ qemu-system-x86_64 -m 2G -drive file=artifacts/mcs-testing.iso,format=raw -enabl
 
 ### Main Menu Options
 
-1. **Clone from Network**: Stream a compressed `.qcow2` image directly from the remote server to the local disk. Fastest method for Gigabit networks.
-2. **Clone from USB**: Select an image already stored in the USB's data partition (`MCS_DATA`) and clone it to the destination disk.
-3. **Images (Manage USB)**: List, download, or delete system images to/from the USB's storage.
+1. **Clone from Network**: Stream a project directory (SYSTEM.raw/DATA.raw) directly from the remote server to the local disk using high-speed RAW partition streaming ("Turbo Clone").
+2. **Clone from USB**: Select a project directory already stored in the USB's data partition (`MCS_DATA`) and clone it to the destination disk using `dd`.
+3. **Local Images**: List, download, or delete system projects (directories) to/from the USB's storage.
 4. **Settings**: Configure the server URL and keyboard layout.
 5. **Poweroff**: Safely shut down the system.

@@ -65,6 +65,17 @@ TEST_UEFI="true"          # Set to true to test UEFI boot
 OVMF_PATH="/usr/share/ovmf/OVMF.fd"
 ```
 
+### 3. Verifying the Clone (Boot Test)
+Once you have performed a clone inside the VM, you can verify that the target disk is actually bootable using the **`test-boot`** script:
+
+```bash
+sudo ./test-boot
+```
+
+This script will:
+- Launch QEMU using ONLY the target disk (`target-hd.qcow2`).
+- Verify that the GRUB bootloader and the operating system start correctly.
+
 ---
 
 ## 🛠️ Manual Method (Advanced)

@@ -8,8 +8,8 @@ The `functions` script (located at `/usr/share/mcs/functions` in the booted syst
 
 | Function | Arguments | Description |
 | :--- | :--- | :--- |
-| `connect_HD` | `target` | Connects a file (QCOW2/IMG) or block device. Uses `qemu-nbd` for files. Returns the device path. |
-| `disconnect_HD` | `device` | Safely disconnects an NBD device and syncs buffers. |
+| `connect_HD` | `target` | Connects a file (IMG), directory, or block device. Returns the device/directory path. |
+| `disconnect_HD` | `device` | Safely disconnects an NBD device (if used) and syncs buffers. |
 
 ### Partitioning & Labels
 
@@ -25,22 +25,25 @@ The `functions` script (located at `/usr/share/mcs/functions` in the booted syst
 | Function | Arguments | Description |
 | :--- | :--- | :--- |
 | `shrink_part` | `device, id` | Minimizes the size of an ext4 partition to its content size. |
-| `clone_HD` | `source, target` | Clones a source QCOW2 image to a target block device. Handles partitioning and file transfer. |
+| `clone_HD` | `source, target` | Clones a source project (directory or URL) to a target block device. Uses high-speed `dd` or `wget | dd` streaming for RAW files. |
 | `rescue` | `device` | Reinstalls GRUB and regenerates `fstab` and `initramfs` on a target system. |
 
 ## 🛠️ Usage Example
 
-To manually clone an image from a shell inside MCS:
+To manually clone a project from a shell inside MCS:
 
 ```bash
 source /usr/share/mcs/functions
 
-# Clone an image to the first SATA disk
-clone_HD /mcsdata/images/my_image.qcow2 /dev/sda
+# Clone a local project to the first SATA disk
+clone_HD /mcsdata/pool/mcs/inv.org_lnx-1 /dev/sda
+
+# Clone a remote project directly via network streaming
+clone_HD http://your-server.org/pool/mcs/inv.org_lnx-1/ /dev/sda
 ```
 
 ## ⚠️ Important Notes
 
-- **NBD Management**: The library uses `/dev/nbd0` through `/dev/nbd15`. Use `free_nbd` to clear all connections if devices get stuck.
-- **Root Required**: Almost all functions require root privileges and specific kernel modules (`nbd`).
+- **RAW Partition Streaming**: The library is optimized for projects containing `SYSTEM.raw` and `DATA.raw`.
+- **Root Required**: Almost all functions require root privileges.
 - **Safety**: The `clone_HD` function is destructive; it will wipe the partition table of the target device.

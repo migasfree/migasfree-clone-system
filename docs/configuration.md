@@ -29,8 +29,8 @@ TESTING_SIZE="8G"
 
 Alternatively, you can modify the variables at the top of the `build` script:
 
-- **`SIZE_MB`**: Adjust this if you plan to include many large APKs or default images in the `MCS_DATA` partition of the generated file.
-- **`SERVER`**: The default domain where MCS will look for system images (`.qcow2`).
+- **`SIZE_MB`**: Adjust this if you plan to include many large APKs or default projects in the `MCS_DATA` partition of the generated file.
+- **`SERVER`**: The default domain where MCS will look for system projects.
 - **`KEYMAP`**: The default keyboard layout (e.g., `es`, `us`, `fr`).
 
 ### Customizing the Filesystem (Overlay)
@@ -54,14 +54,14 @@ settings:
   keymap: es
 ```
 
-### Remote Image Server
+### Remote Project Server
 
-The image server should host **.qcow2** files in a directory reachable at:
-`http://<SERVER_URL>/pool/images/`
+The image server should host **project directories** (containing `SYSTEM.raw` and `DATA.raw`) in a directory reachable at:
+`http://<SERVER_URL>/pool/mcs/`
 
-MCS uses `wget` to list and download these files. Ensure the server has directory listing enabled or provides an index that `grep` can parse (standard Apache/Nginx autoindex works).
+MCS uses `wget` to list and download these projects. Ensure the server has directory listing enabled or provides an index that `grep` can parse (standard Apache/Nginx autoindex works).
 
-For more details on how to set up your image server, see the [Image Management Guide](images_management.md).
+For more details on how to set up your project server, see the [Image Management Guide](images_management.md).
 
 ## ⌨️ Keyboard Layouts
 

@@ -8,24 +8,26 @@ MCS is designed to pull system images from a centralized repository known as the
 
 ### Remote Server Structure
 
-The remote server must serve files over HTTP/HTTPS. By default, MCS looks for images in the following path:
-`http://<SERVER_URL>/pool/images/`
+The remote server must serve files over HTTP/HTTPS. By default, MCS looks for projects in the following path:
+`http://<SERVER_URL>/pool/mcs/`
 
 **Requirements for the remote server:**
-- **Format**: Images must be in **`.qcow2`** format.
-- **Directory Listing**: The web server must have directory listing enabled (Apache `mod_autoindex` or Nginx `autoindex on`). MCS parses the HTML index to present the list of available images in the TUI.
-- **Naming**: Use descriptive filenames (e.g., `vitalinux-3.2-primaria.qcow2`).
+- **Format**: Images must be stored within **project directories**. Each directory contains the raw partition files:
+  - `SYSTEM.raw`: The root filesystem partition.
+  - `DATA.raw`: The data/user partition (or a base image).
+- **Directory Listing**: The web server must have directory listing enabled (Apache `mod_autoindex` or Nginx `autoindex on`). MCS parses the HTML index to identify available project directories.
+- **Naming**: Use descriptive directory names (e.g., `inv.org_lnx-1`).
 
 ---
 
 ## 💾 Local Storage
 
-When an image is downloaded, it is stored in the persistent data partition of the MCS USB drive.
+When a project is downloaded, it is stored in the persistent data partition of the MCS USB drive.
 
-- **Mount Point**: `/mcsdata`
-- **Images Directory**: `/mcsdata/images/`
+- **Mount Point**: `/mcsdata` (locally known as `IMAGES_DIR` in the TUI).
+- **Projects Directory**: `/pool/mcs/` (inside the data partition).
 
-You can also manually load images into the system by copying `.qcow2` files directly to this directory from another computer.
+You can also manually load projects into the system by copying project directories directly to the USB's data partition.
 
 ---
 
@@ -56,7 +58,8 @@ You can change this URL at any time using the **Settings** menu in the MCS TUI.
 
 ## 🔄 Image Lifecycle
 
-1. **Creation**: Create a master system image using your preferred method (e.g., QEMU, VirtualBox) and convert it to QCOW2.
-2. **Upload**: Upload the `.qcow2` file to your organization's `/pool/images/` directory.
-3. **Discovery**: Boot MCS on a client machine. The new image will automatically appear in the **Images > Download** menu.
-4. **Deployment**: Download the image to the USB and use the **Clone** menu to deploy it to the local disk.
+1. **Creation**: Create a master system image using your preferred method (e.g., QEMU, VirtualBox).
+2. **Extraction**: Extract the partitions to RAW files (`SYSTEM.raw` and `DATA.raw`).
+3. **Upload**: Create a directory for your project in the server's `/pool/mcs/` path and upload the `.raw` files.
+4. **Discovery**: Boot MCS on a client machine. The new project will automatically appear in the **Local Images > Download** menu.
+5. **Deployment**: Download the project to the USB and use the **Clone** menu to deploy it to the local disk using high-speed streaming.
