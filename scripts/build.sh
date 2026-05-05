@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 if [[ $EUID -ne 0 ]]; then
    echo "Error: This script must be run as root (sudo)."

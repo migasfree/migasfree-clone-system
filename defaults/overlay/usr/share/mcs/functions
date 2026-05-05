@@ -30,7 +30,7 @@ function load_partition_scheme {
         local _URL="$_SOURCE"
         [[ "$_URL" != */ ]] && _URL="${_URL%/*}/"
         mcs_log "  [DEBUG] Checking for mandatory partition.yml at ${_URL}${_FILE}"
-        wget -q -O "$_TEMP" "${_URL}${_FILE}" 2>/dev/null
+        wget -q --timeout=15 -O "$_TEMP" "${_URL}${_FILE}" 2>/dev/null
     elif [ -d "$_SOURCE" ]; then
         mcs_log "  [DEBUG] Checking for mandatory partition.yml at $_SOURCE/$_FILE"
         cp "$_SOURCE/$_FILE" "$_TEMP" 2>/dev/null
@@ -47,7 +47,7 @@ function load_partition_scheme {
             if [[ "$_SOURCE" == http* ]]; then
                 local _URL="$_SOURCE"
                 [[ "$_URL" != */ ]] && _URL="${_URL%/*}/"
-                wget -q -O "$_CHECKSUMS_TEMP" "${_URL}checksums.sha256" 2>/dev/null
+                wget -q --timeout=15 -O "$_CHECKSUMS_TEMP" "${_URL}checksums.sha256" 2>/dev/null
             elif [ -d "$_SOURCE" ]; then
                 cp "$_SOURCE/checksums.sha256" "$_CHECKSUMS_TEMP" 2>/dev/null
             fi
@@ -780,7 +780,7 @@ function set_hostname {
     # modificación del /etc/hosts
     echo "$_PC" > ${_MOUNT}/etc/hostname
     _FILE=${_MOUNT}/etc/azl-lan/hosts.d/10_localhost
-    /bin/sed -i -e "/^127\.0\.1\.1.*$/d" $_FILE
+    /bin/sed -i.bak -e "/^127\.0\.1\.1.*$/d" $_FILE && rm -f ${_FILE}.bak
     echo "127.0.1.1     ${_PC}.red.zaragoza.es  ${_PC}" >> $_FILE
 
     umount ${_MOUNT} 2>/dev/null
@@ -859,8 +859,8 @@ function rescue {
     local _PARTUUID_SYSTEM=$(blkid -o value -s PARTUUID "${_DEV_SYSTEM}")
     if [ -n "$_PARTUUID_SYSTEM" ]; then
         echo "Fixing root= in grub.cfg: ${_DEV_SYSTEM} -> PARTUUID=${_PARTUUID_SYSTEM}" | tee -a /tmp/mcs-clone.log
-        sed -i "s|root=${_DEV_SYSTEM}|root=PARTUUID=${_PARTUUID_SYSTEM}|g" "${_MOUNT}/boot/grub/grub.cfg"
-        sed -i "s|root=UUID=[^ ]*|root=PARTUUID=${_PARTUUID_SYSTEM}|g" "${_MOUNT}/boot/grub/grub.cfg"
+        sed -i.bak "s|root=${_DEV_SYSTEM}|root=PARTUUID=${_PARTUUID_SYSTEM}|g" "${_MOUNT}/boot/grub/grub.cfg" && rm -f "${_MOUNT}/boot/grub/grub.cfg.bak"
+        sed -i.bak "s|root=UUID=[^ ]*|root=PARTUUID=${_PARTUUID_SYSTEM}|g" "${_MOUNT}/boot/grub/grub.cfg" && rm -f "${_MOUNT}/boot/grub/grub.cfg.bak"
     fi
 
     echo "Syncing and unmounting..."
@@ -911,7 +911,7 @@ function resize_MCS_DATA() {
 
 # void free_nbd(void)
 function free_nbd {
-    for i in {0..15}
+    for i in $(seq 0 15)
     do
         nbd-client -d "/dev/nbd$i"
     done

@@ -16,7 +16,7 @@ download_rootfs() {
     if ! [ -f $MINIROOT ]
     then
       echo "[+] Descargando Alpine rootfs"
-      wget "$file_url"
+      wget --timeout=60 "$file_url"
       echo "    [done]"
     fi
 }
@@ -90,9 +90,9 @@ mkdir $MOUNTDIR/mcsdata/images
 touch $MOUNTDIR/mcsdata/firstrun
 
 # Update default config with build variables
-sed -i "s/server: .*/server: $SERVER/" $MOUNTDIR/usr/share/mcs/config.yml
-sed -i "s/server_ip: .*/server_ip: \"$SERVER_IP\"/" $MOUNTDIR/usr/share/mcs/config.yml
-sed -i "s/keymap: .*/keymap: $KEYMAP/" $MOUNTDIR/usr/share/mcs/config.yml
+sed -i.bak "s/server: .*/server: $SERVER/" $MOUNTDIR/usr/share/mcs/config.yml && rm -f $MOUNTDIR/usr/share/mcs/config.yml.bak
+sed -i.bak "s/server_ip: .*/server_ip: \"$SERVER_IP\"/" $MOUNTDIR/usr/share/mcs/config.yml && rm -f $MOUNTDIR/usr/share/mcs/config.yml.bak
+sed -i.bak "s/keymap: .*/keymap: $KEYMAP/" $MOUNTDIR/usr/share/mcs/config.yml && rm -f $MOUNTDIR/usr/share/mcs/config.yml.bak
 
 cp $MOUNTDIR/usr/share/mcs/config.yml $MOUNTDIR/mcsdata/config.yml
 umount $MOUNTDIR/mcsdata

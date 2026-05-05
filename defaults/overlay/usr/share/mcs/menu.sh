@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail
 
 source /usr/share/mcs/functions
 
@@ -243,7 +244,7 @@ network_clone_menu() {
     URL_PATH="http://$SERVER_URL/pool/mcs/"
     
     # Fetch remote image list (including directories for Turbo Mode)
-    /usr/bin/wget -q -O - "${URL_PATH}" | grep -o 'href="[^"]*"' | grep -v 'href="\.\.\/"' | grep "/\"" | cut -d '"' -f 2 | sed 's/\/$//' | nl -w1 -s' ' | sed 's/\(.*\) \(.*\)/\1 "\2"/' > $TEMPORAL_FILE
+    /usr/bin/wget -q --timeout=15 -O - "${URL_PATH}" | grep -o 'href="[^"]*"' | grep -v 'href="\.\.\/"' | grep "/\"" | cut -d '"' -f 2 | sed 's/\/$//' | nl -w1 -s' ' | sed 's/\(.*\) \(.*\)/\1 "\2"/' > $TEMPORAL_FILE
 
     if [ ! -s "$TEMPORAL_FILE" ]; then
         show_msg "Network Clone" "Error" "No images found on the server:\n$URL_PATH"
@@ -321,7 +322,7 @@ download_image() {
     echo "" > $TEMPORAL_FILE
 
     # Fetch remote project list (directories)
-    wget -q -O - "${URL_PATH}" | grep -o 'href="[^"]*"' | grep -v 'href="\.\.\/"' | grep "/\"" | cut -d '"' -f 2 | sed 's/\/$//' | nl -w1 -s' ' | sed 's/\(.*\) \(.*\)/\1 "\2"/' > $TEMPORAL_FILE
+    wget -q --timeout=15 -O - "${URL_PATH}" | grep -o 'href="[^"]*"' | grep -v 'href="\.\.\/"' | grep "/\"" | cut -d '"' -f 2 | sed 's/\/$//' | nl -w1 -s' ' | sed 's/\(.*\) \(.*\)/\1 "\2"/' > $TEMPORAL_FILE
 
     if [ ! -s "$TEMPORAL_FILE" ]; then
         show_msg "Local Images" "Download" "No projects found on the server:\n$URL_PATH\n\nPlease check your Server URL or repository."
@@ -352,11 +353,11 @@ download_image() {
         
         # 1. Download partition.yml first
         echo "[+] Downloading partition.yml..."
-        /usr/bin/wget -q "$DOWNLOAD_URL/partition.yml" -O "$IMAGES_DIR/${FILE_DIR}partition.yml" 2>/dev/null
+        /usr/bin/wget -q --timeout=15 "$DOWNLOAD_URL/partition.yml" -O "$IMAGES_DIR/${FILE_DIR}partition.yml" 2>/dev/null
 
         # 1b. Download checksums.sha256 (optional integrity verification)
         echo "[+] Downloading checksums.sha256..."
-        /usr/bin/wget -q "$DOWNLOAD_URL/checksums.sha256" -O "$IMAGES_DIR/${FILE_DIR}checksums.sha256" 2>/dev/null
+        /usr/bin/wget -q --timeout=15 "$DOWNLOAD_URL/checksums.sha256" -O "$IMAGES_DIR/${FILE_DIR}checksums.sha256" 2>/dev/null
 
         # 2. Determine parts from YAML (MANDATORY)
         local _PARTS
@@ -374,12 +375,12 @@ download_image() {
             if [[ "$part_name" != "BIOS" && "$part_name" != "EFI" && "$part_name" != "SWAP" ]]; then
                 local _RAW="${part_name}.raw"
                 echo "[+] Downloading $_RAW..."
-                /usr/bin/wget "$DOWNLOAD_URL$_RAW" -P "$IMAGES_DIR/$FILE_DIR"
+                /usr/bin/wget --timeout=30 "$DOWNLOAD_URL$_RAW" -P "$IMAGES_DIR/$FILE_DIR"
                 
                 # Fallback for HOME -> DATA.raw if HOME.raw failed
                 if [ $? -ne 0 ] && [ "$part_name" == "HOME" ]; then
                     echo "[+] Falling back to DATA.raw..."
-                    /usr/bin/wget "${DOWNLOAD_URL}DATA.raw" -P "$IMAGES_DIR/$FILE_DIR"
+                    /usr/bin/wget --timeout=30 "${DOWNLOAD_URL}DATA.raw" -P "$IMAGES_DIR/$FILE_DIR"
                 fi
             fi
         done
