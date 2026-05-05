@@ -44,4 +44,4 @@ if [ "$TEST_UEFI" = "true" ]; then
     fi
 fi
 
-eval $QEMU_CMD
+eval "$QEMU_CMD"

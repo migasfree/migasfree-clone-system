@@ -107,7 +107,7 @@ function connect_HD {
                 return 0
             fi
             sleep 1
-            let timeout--
+            timeout=$((timeout - 1))
         done
         echo "  [ERROR] Partitions never appeared on $_DEVICE" >&2
         qemu-nbd -d "$_DEVICE" >/dev/null 2>&1
@@ -120,13 +120,30 @@ function connect_HD {
         # Local file
         echo "  [DEBUG] Connecting file $_TARGET via NBD..." >&2
         _DEVICE=$(nbd-first-free)
+        if [ -z "$_DEVICE" ]; then
+            echo "  [ERROR] No free NBD device available" >&2
+            return 1
+        fi
         echo "  [DEBUG] Using NBD device: $_DEVICE" >&2
         qemu-nbd -n -c "$_DEVICE" "$_TARGET" 2>&1 | tee -a /tmp/mcs-clone.log
-        sleep 2
-        partprobe "$_DEVICE" >&2
-        if [ $? = 0 ]; then
-            echo "$_DEVICE"
-        fi
+
+        # Wait for partitions to appear (up to 30 seconds)
+        echo "  [DEBUG] Waiting for partitions on $_DEVICE..." >&2
+        local timeout=30
+        while [ $timeout -gt 0 ]; do
+            partprobe "$_DEVICE" >&2 2>/dev/null
+            partx -a "$_DEVICE" 2>/dev/null || :
+            if [ -e "${_DEVICE}p1" ] || [ -e "${_DEVICE}1" ]; then
+                echo "  [DEBUG] Partitions detected after $((30 - timeout))s" >&2
+                echo "$_DEVICE"
+                return 0
+            fi
+            sleep 1
+            timeout=$((timeout - 1))
+        done
+        echo "  [ERROR] Partitions never appeared on $_DEVICE" >&2
+        qemu-nbd -d "$_DEVICE" >/dev/null 2>&1
+        return 1
     elif [ -b "$_TARGET" ]; then
         # Block device
         echo "$_TARGET"
@@ -192,7 +209,7 @@ function shrink_HD {
     IFS=$'\n'
     for _DEV_PART in $(ls_parts ${_DEVICE})
     do
-        umount ${_DEV_PART} 2&>/dev/null || :
+        umount ${_DEV_PART} 2>/dev/null || :
         shrink_part ${_DEVICE} $(id_by_part $_DEV_PART)
     done
     IFS=''
@@ -538,9 +555,9 @@ function make_HD {
 
     _DEV=$(connect_HD "$_DEVICE")
     make_partitions "$_DEV"
-    disconnect_HD "$_DEV"
-
-    _DEV=$(connect_HD "$_DEVICE")
+    partprobe "$_DEV"
+    sync
+    sleep 2
     make_file_systems "$_DEV"
     disconnect_HD "$_DEV"
 
@@ -598,57 +615,33 @@ function clone_HD {
                 then
                     _SIZE=$(max_home_size $_TARGET)
                 fi
-                _DEV_PART_SOURCE=$(part_by_label_on_device "$_SOURCE" "$_NAME")
-                _DEV_PART_TARGET=$(part_by_label_on_device "$_TARGET" "$_NAME")
-
-                # Fallback to partition number if label not found on source
-                if [ -z "$_DEV_PART_SOURCE" ]; then
-                    _DEV_PART_SOURCE=$(part_by_id "$_SOURCE" "$_NUMBER")
-                fi
-                if [ -z "$_DEV_PART_TARGET" ]; then
-                    _DEV_PART_TARGET=$(part_by_id "$_TARGET" "$_NUMBER")
-                fi
-
-                echo "  [DEBUG] Source device: $_DEV_PART_SOURCE" | tee -a /tmp/mcs-clone.log
-                echo "  [DEBUG] Target device: $_DEV_PART_TARGET" | tee -a /tmp/mcs-clone.log
-
                 mcs_log " "
                 mcs_log "Clonando: $_NAME"
                 mcs_log "================"
 
-
-                mkdir -p /mnt/source
-                _FSTYPE=$(blkid -o value -s TYPE "${_DEV_PART_SOURCE}")
-                if [ -n "$_FSTYPE" ]; then
-                    mount -o ro -t "$_FSTYPE" "${_DEV_PART_SOURCE}" /mnt/source 2>&1 | tee -a /tmp/mcs-clone.log
-                else
-                    mount -o ro "${_DEV_PART_SOURCE}" /mnt/source 2>&1 | tee -a /tmp/mcs-clone.log
-                fi
-
-                mkdir -p /mnt/target
-                mount -o rw,noatime,nodiratime,nodiscard -t auto "${_DEV_PART_TARGET}" /mnt/target 2>&1 | tee -a /tmp/mcs-clone.log
-
                 if [[ "$_SOURCE" == http* ]]; then
-                    # =========================================================
-                    # TURBO CLONE: wget | dd (Fastest possible HTTP stream)
-                    # =========================================================
+                    _DEV_PART_TARGET=$(part_by_label_on_device "$_TARGET" "$_NAME")
+                    if [ -z "$_DEV_PART_TARGET" ]; then
+                        _DEV_PART_TARGET=$(part_by_id "$_TARGET" "$_NUMBER")
+                    fi
+                    echo "  [DEBUG] Target device: $_DEV_PART_TARGET" | tee -a /tmp/mcs-clone.log
+
                     local _REMOTE_URL="${_SOURCE}${_NAME}.raw"
-                    # Fallback for HOME -> DATA.raw
                     if [ "$_NAME" = "HOME" ]; then
-                        # Try to detect if HOME.raw exists, else use DATA.raw
-                        # We use a simple HEAD request via wget to check existence
                         if ! wget --spider -q "${_REMOTE_URL}" 2>/dev/null; then
                             _REMOTE_URL="${_SOURCE}DATA.raw"
                         fi
                     fi
                     mcs_log "  [+] Copying partition $_NAME via wget from ${_REMOTE_URL}..."
-                    umount /mnt/target 2>/dev/null
                     wget -O - "$_REMOTE_URL" | dd of="${_DEV_PART_TARGET}" bs=1M status=progress 2>&1 | tee -a /tmp/mcs-clone.log
                     sync
                 elif [ -d "$_SOURCE" ]; then
-                    # =========================================================
-                    # LOCAL CLONE: dd (For directory-based RAW images)
-                    # =========================================================
+                    _DEV_PART_TARGET=$(part_by_label_on_device "$_TARGET" "$_NAME")
+                    if [ -z "$_DEV_PART_TARGET" ]; then
+                        _DEV_PART_TARGET=$(part_by_id "$_TARGET" "$_NUMBER")
+                    fi
+                    echo "  [DEBUG] Target device: $_DEV_PART_TARGET" | tee -a /tmp/mcs-clone.log
+
                     local _RAW_FILE="${_SOURCE}/${_NAME}.raw"
                     if [ "$_NAME" = "HOME" ] && [ ! -f "$_RAW_FILE" ]; then
                         _RAW_FILE="${_SOURCE}/DATA.raw"
@@ -656,12 +649,16 @@ function clone_HD {
 
                     if [ -f "$_RAW_FILE" ]; then
                         mcs_log "  [+] Copying partition $_NAME from ${_RAW_FILE}..."
-                        umount /mnt/target 2>/dev/null
                         dd if="$_RAW_FILE" of="${_DEV_PART_TARGET}" bs=1M status=progress 2>&1 | tee -a /tmp/mcs-clone.log
                         sync
                     else
+                        _DEV_PART_SOURCE=$(part_by_label_on_device "$_SOURCE" "$_NAME")
+                        if [ -z "$_DEV_PART_SOURCE" ]; then
+                            _DEV_PART_SOURCE=$(part_by_id "$_SOURCE" "$_NUMBER")
+                        fi
+                        echo "  [DEBUG] Source device: $_DEV_PART_SOURCE" | tee -a /tmp/mcs-clone.log
+
                         echo "  [WARNING] Raw image not found: $_RAW_FILE, falling back to rsync..." | tee -a /tmp/mcs-clone.log
-                        # Fallback to rsync if partition source exists
                         if [ -n "$_DEV_PART_SOURCE" ]; then
                             mkdir -p /mnt/source
                             _FSTYPE=$(blkid -o value -s TYPE "${_DEV_PART_SOURCE}")
@@ -676,18 +673,16 @@ function clone_HD {
                             mount -o rw,noatime,nodiratime,nodiscard -t auto "${_DEV_PART_TARGET}" /mnt/target 2>&1 | tee -a /tmp/mcs-clone.log
                             rsync -aHAXx --info=progress2 --numeric-ids --ignore-errors --timeout=120 --delete /mnt/source/ /mnt/target/ 2>&1 | tee -a /tmp/mcs-clone.log
                             sync
-                            
-                            umount /mnt/source 2&>/dev/null
+
+                            umount /mnt/source 2>/dev/null
                             rmdir /mnt/source
+                            umount /mnt/target 2>/dev/null
+                            rmdir /mnt/target
                         fi
                     fi
                 else
-                    # Fallback for other cases (should not happen with new structure)
                     echo "  [ERROR] Unknown source type for $_NAME cloning." | tee -a /tmp/mcs-clone.log
                 fi
-
-                umount /mnt/target 2&>/dev/null
-                rmdir /mnt/target
 
                 ;;
             *)
@@ -720,7 +715,7 @@ function set_hostname {
     /bin/sed -i -e "/^127\.0\.1\.1.*$/d" $_FILE
     echo "127.0.1.1     ${_PC}.red.zaragoza.es  ${_PC}" >> $_FILE
 
-    umount ${_MOUNT} 2&>/dev/null
+    umount ${_MOUNT} 2>/dev/null
     rmdir ${_MOUNT}
     disconnect_HD $_DEVICE
 }
