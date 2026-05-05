@@ -360,8 +360,27 @@ make_file_systems() {
     local _OLD_IFS="$IFS"
     IFS=$'\n'
     for _PARTITION in $_PARTITIONS
-                umount ${_DEV_PART} 2&> /dev/null || :
-                LANG=C yes | mkfs.fat ${_DEV_PART}> /dev/null
+    do
+        _NUMBER=$(echo "$_PARTITION" | awk -F ";" '{print $1}')
+        _NAME=$(echo "$_PARTITION" | awk -F ";" '{print $2}')
+        _FILESYSTEM=$(echo "$_PARTITION" | awk -F ";" '{print $3}')
+        _DEV_PART=$(part_by_id ${_DEVICE} ${_NUMBER})
+
+        case "$_FILESYSTEM" in
+            "ext4")
+                echo "Partición $_NUMBER $_NAME -> ext4"
+                umount ${_DEV_PART} 2>/dev/null || :
+                LANG=C yes | mkfs.ext4 -E nodiscard ${_DEV_PART}
+                ;;
+            "swap")
+                echo "Partición $_NUMBER $_NAME -> swap"
+                umount ${_DEV_PART} 2>/dev/null || :
+                LANG=C yes | mkswap ${_DEV_PART} > /dev/null
+                ;;
+            "vfat")
+                echo "Partición $_NUMBER $_NAME -> fat"
+                umount ${_DEV_PART} 2>/dev/null || :
+                LANG=C yes | mkfs.fat ${_DEV_PART} > /dev/null
                 ;;
             *)
                 ;;
@@ -559,6 +578,13 @@ clone_HD() {
 
     local _OLD_IFS="$IFS"
     IFS=$'\n'
+    for _PARTITION in $_PARTITIONS
+    do
+        _NUMBER=$(echo "$_PARTITION" | awk -F ";" '{print $1}')
+        _NAME=$(echo "$_PARTITION" | awk -F ";" '{print $2}')
+        _SIZE=$(echo "$_PARTITION" | awk -F ";" '{print $3}')
+        
+        mcs_log "  [DEBUG] Checking partition $_NUMBER: $_NAME"
         
         case "$_NAME" in
             "HOME"|"SYSTEM" )
