@@ -42,8 +42,6 @@ then
       set 2 bios_grub on \
       mkpart ROOT ext4 101MiB 2101MiB \
       mkpart DATA ext4 2101MiB 2201MiB
-    partprobe ${LOOPDEV}
-    sleep 1
     parted "${ARTIFACTSDIR}/${IMG}" print
 
     echo "[+] Loop device..."
