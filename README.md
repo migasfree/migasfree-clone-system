@@ -9,6 +9,7 @@
 ## 📚 Documentation
 
 - [Architecture & Design](docs/architecture.md)
+- [User Guide (End-User)](docs/user_guide.md)
 - [Configuration Guide](docs/configuration.md)
 - [Shell Functions Reference](docs/functions.md)
 - [Testing with QEMU](docs/testing.md)
@@ -21,17 +22,21 @@
 
 ### Prerequisites
 
-- A Linux host (preferably Debian/Ubuntu based).
-- **Docker** installed and running.
-- **Root privileges** (required for loop device manipulation and partitioning).
-- `parted`, `e2fsprogs`, and `qemu-utils` installed on the host.
+To build, test, and deploy MCS, your host system needs:
+
+- **Operating System**: Linux (Debian/Ubuntu/Alpine recommended).
+- **Core Tools**: `make`, `sudo`, `wget`, `rsync`.
+- **Docker**: Installed and running (for the multi-stage build process).
+- **Disk Utilities**: `parted`, `e2fsprogs` (for partitioning and formatting).
+- **Virtualization (Testing)**: `qemu-system-x86`, `qemu-utils`, and `ovmf` (for UEFI tests).
+- **Root Privileges**: Required for loop device manipulation and partitioning.
 
 ### Building the Image
 
-To generate the MCS bootable image, simply run the build script from the root of the repository:
+To generate the MCS bootable image, simply run the build command from the root of the repository:
 
 ```bash
-sudo ./build
+make build
 ```
 
 The script will:
@@ -67,7 +72,7 @@ graph TD
 
 | Component | Path | Description |
 | :--- | :--- | :--- |
-| **Build Script** | `/build` | Orchestrates the image creation process on the host. |
+| **Build Script** | `/scripts/build.sh` | Orchestrates the image creation process on the host. |
 | **MakeImg** | `/defaults/usr/bin/makeimg` | The main logic running inside the container to build the OS. |
 | **Overlay** | `/defaults/overlay/` | Files and configurations injected into the target system. |
 | **MCS Menu** | `.../usr/share/mcs/menu.sh` | The TUI application that users interact with upon booting. |
@@ -98,7 +103,7 @@ Once the image is built, you can write it to a USB drive or boot it in a Virtual
 ### Booting in QEMU (for testing)
 
 ```bash
-qemu-system-x86_64 -m 2G -drive file=artifacts/mcs-testing.iso,format=raw -enable-kvm
+make test
 ```
 
 ### Main Menu Options

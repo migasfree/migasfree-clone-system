@@ -27,7 +27,7 @@ TESTING_SIZE="8G"
 
 ### Build Script Variables
 
-Alternatively, you can modify the variables at the top of the `build` script:
+Alternatively, you can modify the variables at the top of the **`/scripts/build.sh`** script:
 
 - **`SIZE_MB`**: Adjust this if you plan to include many large APKs or default projects in the `MCS_DATA` partition of the generated file.
 - **`SERVER`**: The default domain where MCS will look for system projects.

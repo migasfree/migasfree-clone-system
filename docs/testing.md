@@ -21,25 +21,11 @@ sudo pacman -S qemu-desktop ovmf
 
 We provide a built-in script that handles the creation of a temporary testing image and launches QEMU with the correct parameters.
 
-### 1. Run the test script
-Simply run the script from the root of the repository:
+### 1. Run the test command
+Simply run the make command from the root of the repository:
 
 ```bash
-sudo ./test
-```
-
-### 2. Overriding settings via arguments
-You can override the defaults from `mcs.conf` using command-line flags:
-
-```bash
-# Test with 4GB of RAM and UEFI enabled
-sudo ./test -m 4G -u
-
-# Test with a larger 20GB disk
-sudo ./test -s 20G
-
-# Test using a physical USB device
-sudo ./test -d /dev/sda
+make test
 ```
 
 **Available options:**
@@ -66,10 +52,10 @@ OVMF_PATH="/usr/share/ovmf/OVMF.fd"
 ```
 
 ### 3. Verifying the Clone (Boot Test)
-Once you have performed a clone inside the VM, you can verify that the target disk is actually bootable using the **`test-boot`** script:
+Once you have performed a clone inside the VM, you can verify that the target disk is actually bootable using the **`make test-boot`** command:
 
 ```bash
-sudo ./test-boot
+make test-boot
 ```
 
 This script will:
