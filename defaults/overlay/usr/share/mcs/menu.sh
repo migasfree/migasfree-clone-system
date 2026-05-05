@@ -353,11 +353,11 @@ download_image() {
         
         # 1. Download partition.yml first
         echo "[+] Downloading partition.yml..."
-        /usr/bin/wget -q --timeout=15 "$DOWNLOAD_URL/partition.yml" -O "$IMAGES_DIR/${FILE_DIR}partition.yml" 2>/dev/null
+        /usr/bin/wget -q --timeout=15 "${DOWNLOAD_URL}partition.yml" -O "$IMAGES_DIR/${FILE_DIR}partition.yml" 2>/dev/null
 
         # 1b. Download checksums.sha256 (optional integrity verification)
         echo "[+] Downloading checksums.sha256..."
-        /usr/bin/wget -q --timeout=15 "$DOWNLOAD_URL/checksums.sha256" -O "$IMAGES_DIR/${FILE_DIR}checksums.sha256" 2>/dev/null
+        /usr/bin/wget -q --timeout=15 "${DOWNLOAD_URL}checksums.sha256" -O "$IMAGES_DIR/${FILE_DIR}checksums.sha256" 2>/dev/null
 
         # 2. Determine parts from YAML (MANDATORY)
         local _PARTS
@@ -370,22 +370,24 @@ download_image() {
         fi
 
         # 3. Download .raw files
+        local _RET=0
         for part_name in $_PARTS; do
             # Download all partitions except structural ones (BIOS, EFI, SWAP)
             if [[ "$part_name" != "BIOS" && "$part_name" != "EFI" && "$part_name" != "SWAP" ]]; then
                 local _RAW="${part_name}.raw"
                 echo "[+] Downloading $_RAW..."
-                /usr/bin/wget --timeout=30 "$DOWNLOAD_URL$_RAW" -P "$IMAGES_DIR/$FILE_DIR"
+                /usr/bin/wget --timeout=30 "${DOWNLOAD_URL}${_RAW}" -O "$IMAGES_DIR/${FILE_DIR}${_RAW}"
                 
                 # Fallback for HOME -> DATA.raw if HOME.raw failed
                 if [ $? -ne 0 ] && [ "$part_name" == "HOME" ]; then
                     echo "[+] Falling back to DATA.raw..."
-                    /usr/bin/wget --timeout=30 "${DOWNLOAD_URL}DATA.raw" -P "$IMAGES_DIR/$FILE_DIR"
+                    /usr/bin/wget --timeout=30 "${DOWNLOAD_URL}DATA.raw" -O "$IMAGES_DIR/${FILE_DIR}DATA.raw"
                 fi
+                [ $? -ne 0 ] && _RET=1
             fi
         done
 
-        if [ $? = 0 ]; then
+        if [ $_RET -eq 0 ]; then
             dialog --msgbox "Download project $FILE completed!" 10 50
         else
             dialog --msgbox "Download project $FILE failed!" 10 50

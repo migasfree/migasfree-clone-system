@@ -12,11 +12,13 @@ The remote server must serve files over HTTP/HTTPS. By default, MCS looks for pr
 `http://<SERVER_URL>/pool/mcs/`
 
 **Requirements for the remote server:**
+
 - **Format**: Images must be stored within **project directories**. Each directory contains:
   - `partition.yml` **(mandatory)**: Partition layout definition (see [Partitioning Guide](partitioning.md)).
   - `SYSTEM.raw`: The root filesystem partition image.
   - `DATA.raw` or `HOME.raw`: The data/user partition image.
   - `checksums.sha256` **(optional)**: SHA-256 checksums for integrity verification (see below).
+
 - **Directory Listing**: The web server must have directory listing enabled (Apache `mod_autoindex` or Nginx `autoindex on`). MCS parses the HTML index to identify available project directories.
 - **Naming**: Use descriptive directory names (e.g., `inv.org_lnx-1`).
 
@@ -52,13 +54,13 @@ MCS supports **SHA-256 integrity verification** for `.raw` partition files to de
 
 Every project directory can include an optional `checksums.sha256` file. If present, MCS automatically verifies that the cloned data matches the expected checksum. The file follows this format:
 
-```
+```text
 <sha256_hash> <size_in_bytes> <filename>.raw
 ```
 
 Example:
 
-```
+```text
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 21474836480 SYSTEM.raw
 a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a  5368709120 HOME.raw
 ```
@@ -89,7 +91,7 @@ done > checksums.sha256
 
 Resultado:
 
-```
+```text
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 21474836480 SYSTEM.raw
 a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a 5368709120 HOME.raw
 ```
