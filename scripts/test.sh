@@ -86,12 +86,15 @@ if [ -n "$TEST_TARGET_DISK" ]; then
 fi
 
 # 4. Build QEMU command
+DRIVE_OPTS="format=raw,index=0,media=disk"
+[ -n "$PHYSICAL_DEV" ] && DRIVE_OPTS="${DRIVE_OPTS},cache=none"
+
 QEMU_CMD="sudo qemu-system-x86_64 \
     -m $TEST_RAM \
     -enable-kvm \
     -cpu host \
     -net nic,model=virtio -net user \
-    -drive file=$TEST_IMG,format=raw,index=0,media=disk \
+    -drive file=$TEST_IMG,$DRIVE_OPTS \
     $TARGET_DRIVE \
     -monitor unix:/tmp/qemu-monitor.sock,server,nowait"
 
@@ -111,4 +114,4 @@ echo "[+] Launching QEMU..."
 echo "    RAM: $TEST_RAM"
 echo "    UEFI: $TEST_UEFI"
 echo "    Target: ${TEST_TARGET_DISK:-none}"
-eval $QEMU_CMD
+eval "$QEMU_CMD"

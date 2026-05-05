@@ -8,13 +8,25 @@
 
 ## 📚 Documentation
 
-- [Architecture & Design](docs/architecture.md)
-- [User Guide (End-User)](docs/user_guide.md)
-- [Configuration Guide](docs/configuration.md)
-- [Shell Functions Reference](docs/functions.md)
-- [Testing with QEMU](docs/testing.md)
-- [Deployment to USB](docs/usb_deployment.md)
-- [Image Management & Pool](docs/images_management.md)
+The documentation is organized following the [Diátaxis](https://diataxis.fr/) framework:
+
+### 🛠️ How-To Guides (Goal-oriented)
+
+- [User Guide (End-User)](docs/user_guide.md) - Operating the TUI.
+- [Testing with QEMU](docs/testing.md) - Virtualized testing environment.
+- [Deployment to USB](docs/usb_deployment.md) - Creating physical bootable media.
+
+### 📖 Technical Reference (Information-oriented)
+
+- [Disk Partitioning Guide](docs/partitioning.md) - `partition.yml` specification.
+- [Configuration Guide](docs/configuration.md) - Build and runtime settings.
+- [Image Management & Pool](docs/images_management.md) - Managing `.raw` images.
+- [Shell Functions Reference](docs/functions.md) - Internal library documentation.
+
+### 🧠 Explanation (Understanding-oriented)
+
+- [Architecture & Design](docs/architecture.md) - High-level system design.
+- [Architecture Decision Records (ADR)](docs/adr/) - History of key technical decisions.
 
 ---
 

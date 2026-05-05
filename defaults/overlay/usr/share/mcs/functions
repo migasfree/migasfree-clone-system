@@ -1,46 +1,53 @@
 #!/bin/bash
+set -o pipefail
 
 # SIZE EN MB
 
-read -r -d '' _JSON_PARTITIONS << EOM
-[
-    { "number": "1",
-      "name": "EFI",
-      "size": "512",
-      "type": "ef00",
-      "filesystem": "vfat",
-      "mount": "/boot/efi"
-    },
-    { "number": "2",
-      "name": "BIOS",
-      "size": "1",
-      "type": "ef02",
-      "filesystem": "ext4",
-      "mount": "none"
-    },
-    { "number": "3",
-      "name": "SWAP",
-      "size": "4096",
-      "type": "8200",
-      "filesystem": "swap",
-      "mount": "none"
-    },
-    { "number": "4",
-      "name": "SYSTEM",
-      "size": "20480",
-      "type": "8300",
-      "filesystem": "ext4",
-      "mount": "/"
-    },
-    { "number": "5",
-      "name": "HOME",
-      "size": "1000",
-      "type": "8300",
-      "filesystem": "ext4",
-      "mount": "/home"
-    }
-]
-EOM
+# Global partition definitions
+# Must be loaded via load_partition_scheme from a project's partition.yml
+_JSON_PARTITIONS=""
+
+function mcs_log {
+    local _MSG="$1"
+    echo "$_MSG"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $_MSG" >> /tmp/mcs-clone.log
+}
+
+function load_partition_scheme {
+    local _SOURCE="$1"
+    local _FILE="partition.yml"
+    local _TEMP="/tmp/partition.yml"
+
+    # Reset first
+    _JSON_PARTITIONS=""
+
+    if [[ "$_SOURCE" == http* ]]; then
+        # Ensure URL ends with / if it's a directory
+        local _URL="$_SOURCE"
+        [[ "$_URL" != */ ]] && _URL="${_URL%/*}/"
+        mcs_log "  [DEBUG] Checking for mandatory partition.yml at ${_URL}${_FILE}"
+        wget -q -O "$_TEMP" "${_URL}${_FILE}" 2>/dev/null
+    elif [ -d "$_SOURCE" ]; then
+        mcs_log "  [DEBUG] Checking for mandatory partition.yml at $_SOURCE/$_FILE"
+        cp "$_SOURCE/$_FILE" "$_TEMP" 2>/dev/null
+    fi
+
+    if [ -f "$_TEMP" ] && [ -s "$_TEMP" ]; then
+        local _NEW_JSON=$(yq -o json '.partitions' "$_TEMP" 2>/dev/null)
+        if [ -n "$_NEW_JSON" ] && [ "$_NEW_JSON" != "null" ]; then
+            _JSON_PARTITIONS="$_NEW_JSON"
+            mcs_log "  [DEBUG] Partition scheme loaded from $_FILE"
+            rm -f "$_TEMP"
+            return 0
+        else
+            mcs_log "  [ERROR] Failed to parse $_FILE (invalid YAML or missing 'partitions' key)"
+        fi
+    else
+        mcs_log "  [ERROR] Mandatory partition.yml not found!"
+    fi
+    rm -f "$_TEMP"
+    return 1
+}
 
 
 # ============
@@ -317,7 +324,7 @@ function part_label {
 
 function make_fstab {
     local _DEVICE="$1"
-    local _PARTITIONS=$(echo "$_JSON_PARTITIONS"|jq -r '.[] | .number +";"+ .name +";"+ .mount +";"+ .filesystem +";" ')
+    local _PARTITIONS=$(echo "$_JSON_PARTITIONS"|jq -r '.[] | "\(.number);\(.name);\(.mount);\(.filesystem);"')
     local _PARTITION
     local _NUMBER
     local _NAME
@@ -354,7 +361,7 @@ function make_fstab {
 
 function make_file_systems {
     local _DEVICE="$1"
-    local _PARTITIONS=$(echo "$_JSON_PARTITIONS"|jq -r '.[] | .number +";"+ .name +";"+ .filesystem +";" ')
+    local _PARTITIONS=$(echo "$_JSON_PARTITIONS"|jq -r '.[] | "\(.number);\(.name);\(.filesystem);"')
     local _PARTITION
     local _NUMBER
     local _NAME
@@ -403,7 +410,7 @@ function make_file_systems {
 
 function set_journal {
     local _DEVICE="$1"
-    local _PARTITIONS=$(echo "$_JSON_PARTITIONS"|jq -r '.[] | .number +";"+ .name +";"+ .filesystem +";" ')
+    local _PARTITIONS=$(echo "$_JSON_PARTITIONS"|jq -r '.[] | "\(.number);\(.name);\(.filesystem);"')
     local _PARTITION
     local _NUMBER
     local _NAME
@@ -474,23 +481,21 @@ function make_partitions {
     echo
     echo "Creating a new GPT partition table on $_DEVICE using sfdisk"
     
-    # 1: EFI (512MB) -> C12A7328-F81F-11D2-BA4B-00A0C93EC93B
-    # 2: BIOS (1MB)  -> 21686148-6449-6E6F-744E-656564454649 (BIOS boot partition)
-    # 3: SWAP (4GB)  -> 0657FD6D-A4AB-43C4-84E5-0933C84B4F4F
-    # 4: SYSTEM (20GB)-> 0FC63DAF-8483-4772-8E79-3D69D8477DE4 (Linux filesystem)
-    # 5: HOME (Rest) -> 0FC63DAF-8483-4772-8E79-3D69D8477DE4
-
+    # Header
     cat <<EOF > "$_SFDISK_SCRIPT"
 label: gpt
 unit: sectors
 first-lba: 2048
-
-1 : start=2048, size=1048576, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI"
-2 : size=2048, type=21686148-6449-6E6F-744E-656564454649, name="BIOS"
-3 : size=8388608, type=0657FD6D-A4AB-43C4-84E5-0933C84B4F4F, name="SWAP"
-4 : size=41943040, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="SYSTEM"
-5 : type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="HOME"
 EOF
+
+    # Dynamic partitions from _JSON_PARTITIONS
+    # Convert MB to sectors (MB * 2048)
+    # Note: size=0 or empty means use the rest of the disk
+    echo "$_JSON_PARTITIONS" | jq -r '.[] | 
+        "\(.number) : " + 
+        (if .number == "1" or .number == 1 then "start=2048, " else "" end) +
+        (if .size != "0" and .size != 0 and .size != null then "size=\((.size|tonumber)*2048), " else "" end) + 
+        "type=\(.type), name=\"\(.name)\""' >> "$_SFDISK_SCRIPT"
 
     sfdisk "$_DEVICE" < "$_SFDISK_SCRIPT" &>/dev/null
     check_result
@@ -547,7 +552,14 @@ function clone_HD {
     local _SOURCE="$1"
     local _TARGET="$2"
     local _ORIGIN_TARGET=${_TARGET}
-    local _PARTITIONS=$(echo "$_JSON_PARTITIONS"|jq -r '.[] | .number +";"+ .name +";"+ .size +";" ')
+
+    # Load partition scheme if partition.yml exists in source
+    load_partition_scheme "$_SOURCE" || return 1
+
+    local _PARTITIONS=$(echo "$_JSON_PARTITIONS"|jq -r '.[] | "\(.number);\(.name);\(.size);"' 2>/dev/null)
+    mcs_log "  [DEBUG] Total partitions in scheme: $(echo "$_JSON_PARTITIONS" | jq '. | length')"
+    mcs_log "  [DEBUG] Partitions to process: $(echo "$_PARTITIONS" | grep -c ";" || echo 0)"
+
     local _NUMBER
     local _NAME
 
@@ -577,6 +589,9 @@ function clone_HD {
         _NUMBER=$(echo "$_PARTITION" | awk -F ";" '{print $1}')
         _NAME=$(echo "$_PARTITION" | awk -F ";" '{print $2}')
         _SIZE=$(echo "$_PARTITION" | awk -F ";" '{print $3}')
+        
+        mcs_log "  [DEBUG] Checking partition $_NUMBER: $_NAME"
+        
         case "$_NAME" in
             "HOME"|"SYSTEM" )
                 if [ $_NAME = "HOME" ]
@@ -597,9 +612,9 @@ function clone_HD {
                 echo "  [DEBUG] Source device: $_DEV_PART_SOURCE" | tee -a /tmp/mcs-clone.log
                 echo "  [DEBUG] Target device: $_DEV_PART_TARGET" | tee -a /tmp/mcs-clone.log
 
-                echo
-                echo "Clonando: $_NAME"
-                echo "================"
+                mcs_log " "
+                mcs_log "Clonando: $_NAME"
+                mcs_log "================"
 
 
                 mkdir -p /mnt/source
@@ -626,7 +641,7 @@ function clone_HD {
                             _REMOTE_URL="${_SOURCE}DATA.raw"
                         fi
                     fi
-                    echo "  [+] Copying partition $_NAME via wget from ${_REMOTE_URL}..." | tee -a /tmp/mcs-clone.log
+                    mcs_log "  [+] Copying partition $_NAME via wget from ${_REMOTE_URL}..."
                     umount /mnt/target 2>/dev/null
                     wget -O - "$_REMOTE_URL" | dd of="${_DEV_PART_TARGET}" bs=1M status=progress 2>&1 | tee -a /tmp/mcs-clone.log
                     sync
@@ -640,7 +655,7 @@ function clone_HD {
                     fi
 
                     if [ -f "$_RAW_FILE" ]; then
-                        echo "  [+] Copying partition $_NAME from ${_RAW_FILE}..." | tee -a /tmp/mcs-clone.log
+                        mcs_log "  [+] Copying partition $_NAME from ${_RAW_FILE}..."
                         umount /mnt/target 2>/dev/null
                         dd if="$_RAW_FILE" of="${_DEV_PART_TARGET}" bs=1M status=progress 2>&1 | tee -a /tmp/mcs-clone.log
                         sync
@@ -742,31 +757,38 @@ function rescue {
     make_fstab "$_DEVICE" > "${_MOUNT}/etc/fstab"
 
     # Install GRUB (BIOS)
-    echo "Installing GRUB (BIOS)..." | tee -a /tmp/mcs-clone.log
+    mcs_log "Installing GRUB (BIOS)..."
     # Create a device map for GRUB to be sure it points to the right NBD device
     echo "(hd0) ${_DEVICE}" > "${_MOUNT}/boot/grub/device.map"
     
     # Try installing from inside chroot first, but with more modules
-    chroot "${_MOUNT}" grub-install --target=i386-pc --force --modules="part_gpt biosdisk" "${_DEVICE}" 2>&1 | tee -a /tmp/mcs-clone.log
-    
-    # Fallback: install from outside chroot if possible (using host paths)
-    if [ $? -ne 0 ]; then
-        echo "  [WARNING] grub-install inside chroot failed, trying from host..." | tee -a /tmp/mcs-clone.log
+    if chroot "${_MOUNT}" which grub-install >/dev/null 2>&1; then
+        chroot "${_MOUNT}" grub-install --target=i386-pc --force --modules="part_gpt biosdisk" "${_DEVICE}" 2>&1 | tee -a /tmp/mcs-clone.log
+    else
+        mcs_log "  [WARNING] grub-install not found inside target, trying from host..."
         grub-install --target=i386-pc --boot-directory="${_MOUNT}/boot" --force "${_DEVICE}" 2>&1 | tee -a /tmp/mcs-clone.log
     fi
     
     # Install GRUB (UEFI) if EFI partition exists
     if [ -n "$_DEV_EFI" ]; then
-        echo "Installing GRUB (UEFI)..." | tee -a /tmp/mcs-clone.log
-        chroot "${_MOUNT}" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=grub --force 2>&1 | tee -a /tmp/mcs-clone.log
+        mcs_log "Installing GRUB (UEFI)..."
+        if chroot "${_MOUNT}" which grub-install >/dev/null 2>&1; then
+            chroot "${_MOUNT}" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=grub --force 2>&1 | tee -a /tmp/mcs-clone.log
+        else
+            mcs_log "  [WARNING] grub-install (UEFI) not found inside target, skipping chroot install..."
+        fi
         # Fallback for some BIOS
         mkdir -p "${_MOUNT}/boot/efi/EFI/BOOT"
         cp "${_MOUNT}/boot/efi/EFI/grub/grubx64.efi" "${_MOUNT}/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>/dev/null
     fi
 
     # Update GRUB config (Alpine style)
-    echo "Updating GRUB configuration..." | tee -a /tmp/mcs-clone.log
-    chroot "${_MOUNT}" grub-mkconfig -o /boot/grub/grub.cfg 2>&1 | tee -a /tmp/mcs-clone.log
+    mcs_log "Updating GRUB configuration..."
+    if chroot "${_MOUNT}" which grub-mkconfig >/dev/null 2>&1; then
+        chroot "${_MOUNT}" grub-mkconfig -o /boot/grub/grub.cfg 2>&1 | tee -a /tmp/mcs-clone.log
+    else
+        mcs_log "  [WARNING] grub-mkconfig not found inside target, skipping configuration update..."
+    fi
 
     # Fix root= references: replace /dev/sdXN with PARTUUID=xxx
     # grub-mkconfig hardcodes the device path seen during chroot (e.g. /dev/sdb4)

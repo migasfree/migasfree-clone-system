@@ -347,10 +347,37 @@ download_image() {
         DOWNLOAD_URL="$URL_PATH$FILE_DIR"
         mkdir -p "$IMAGES_DIR/$FILE_DIR"
         echo "[+] Downloading project $FILE..."
-        for part in SYSTEM.raw DATA.raw; do
-            echo "[+] Downloading $part..."
-            /usr/bin/wget "$DOWNLOAD_URL$part" -P "$IMAGES_DIR/$FILE_DIR"
+        
+        # 1. Download partition.yml first
+        echo "[+] Downloading partition.yml..."
+        /usr/bin/wget -q "$DOWNLOAD_URL/partition.yml" -O "$IMAGES_DIR/${FILE_DIR}partition.yml" 2>/dev/null
+
+        # 2. Determine parts from YAML (MANDATORY)
+        local _PARTS
+        if [ -s "$IMAGES_DIR/${FILE_DIR}partition.yml" ]; then
+            _PARTS=$(yq -r '.partitions[].name' "$IMAGES_DIR/${FILE_DIR}partition.yml")
+        else
+            echo "  [ERROR] partition.yml is mandatory for project download!"
+            rm -rf "$IMAGES_DIR/$FILE_DIR"
+            return 1
+        fi
+
+        # 3. Download .raw files
+        for part_name in $_PARTS; do
+            # Download all partitions except structural ones (BIOS, EFI, SWAP)
+            if [[ "$part_name" != "BIOS" && "$part_name" != "EFI" && "$part_name" != "SWAP" ]]; then
+                local _RAW="${part_name}.raw"
+                echo "[+] Downloading $_RAW..."
+                /usr/bin/wget "$DOWNLOAD_URL$_RAW" -P "$IMAGES_DIR/$FILE_DIR"
+                
+                # Fallback for HOME -> DATA.raw if HOME.raw failed
+                if [ $? -ne 0 ] && [ "$part_name" == "HOME" ]; then
+                    echo "[+] Falling back to DATA.raw..."
+                    /usr/bin/wget "${DOWNLOAD_URL}DATA.raw" -P "$IMAGES_DIR/$FILE_DIR"
+                fi
+            fi
         done
+
         if [ $? = 0 ]; then
             dialog --msgbox "Download project $FILE completed!" 10 50
         else
