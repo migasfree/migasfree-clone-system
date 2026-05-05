@@ -79,6 +79,8 @@ find_partition_by_label() {
 SERVER_URL=$(yq '.settings.server' < ${CONFIG_FILE})
 SERVER_IP=$(yq '.settings.server_ip' < ${CONFIG_FILE})
 KEYMAP=$(yq '.settings.keymap' < ${CONFIG_FILE})
+VERIFY_CHECKSUMS=$(yq '.settings.verify_checksums // true' < ${CONFIG_FILE})
+_VERIFY_CHECKSUMS=$VERIFY_CHECKSUMS
 TITLE="Migasfree Clone System ${TAG}"
 
 
@@ -352,6 +354,10 @@ download_image() {
         echo "[+] Downloading partition.yml..."
         /usr/bin/wget -q "$DOWNLOAD_URL/partition.yml" -O "$IMAGES_DIR/${FILE_DIR}partition.yml" 2>/dev/null
 
+        # 1b. Download checksums.sha256 (optional integrity verification)
+        echo "[+] Downloading checksums.sha256..."
+        /usr/bin/wget -q "$DOWNLOAD_URL/checksums.sha256" -O "$IMAGES_DIR/${FILE_DIR}checksums.sha256" 2>/dev/null
+
         # 2. Determine parts from YAML (MANDATORY)
         local _PARTS
         if [ -s "$IMAGES_DIR/${FILE_DIR}partition.yml" ]; then
@@ -431,16 +437,18 @@ settings_menu() {
     while true; do
         CHOICE=$(dialog --clear --backtitle "${TITLE} > Settings" \
                       --title "Settings Menu" \
-                      --menu "" 15 50 3 \
+                      --menu "" 15 50 4 \
                       1 "Server: ${SERVER_URL}" \
                       2 "Server IP: ${SERVER_IP:-Dynamic (DNS)}" \
                       3 "Keymap: ${KEYMAP}" \
+                      4 "Verify integrity: ${VERIFY_CHECKSUMS}" \
                       3>&1 1>&2 2>&3)
 
         case $CHOICE in
             1) setting_server ;;
             2) setting_ip ;;
             3) setting_keymap ;;
+            4) setting_verify_checksums ;;
             *) return ;;
         esac
     done
@@ -468,6 +476,17 @@ setting_keymap() {
         yq -i ".settings.keymap = \"${KEYMAP}\"" ${CONFIG_FILE}
         loadkeys $KEYMAP
     fi
+}
+
+setting_verify_checksums() {
+    if [ "$VERIFY_CHECKSUMS" = "true" ]; then
+        VERIFY_CHECKSUMS="false"
+    else
+        VERIFY_CHECKSUMS="true"
+    fi
+    yq -i ".settings.verify_checksums = ${VERIFY_CHECKSUMS}" ${CONFIG_FILE}
+    _VERIFY_CHECKSUMS=$VERIFY_CHECKSUMS
+    show_msg "Settings" "Integrity verification" "Checksum verification is now: ${VERIFY_CHECKSUMS}"
 }
 
 quit() {

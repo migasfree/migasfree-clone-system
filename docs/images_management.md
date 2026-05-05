@@ -12,9 +12,11 @@ The remote server must serve files over HTTP/HTTPS. By default, MCS looks for pr
 `http://<SERVER_URL>/pool/mcs/`
 
 **Requirements for the remote server:**
-- **Format**: Images must be stored within **project directories**. Each directory contains the raw partition files:
-  - `SYSTEM.raw`: The root filesystem partition.
-  - `DATA.raw`: The data/user partition (or a base image).
+- **Format**: Images must be stored within **project directories**. Each directory contains:
+  - `partition.yml` **(mandatory)**: Partition layout definition (see [Partitioning Guide](partitioning.md)).
+  - `SYSTEM.raw`: The root filesystem partition image.
+  - `DATA.raw` or `HOME.raw`: The data/user partition image.
+  - `checksums.sha256` **(optional)**: SHA-256 checksums for integrity verification (see below).
 - **Directory Listing**: The web server must have directory listing enabled (Apache `mod_autoindex` or Nginx `autoindex on`). MCS parses the HTML index to identify available project directories.
 - **Naming**: Use descriptive directory names (e.g., `inv.org_lnx-1`).
 
@@ -42,17 +44,93 @@ To ensure secure communication and verify the identity of the image server, MCS 
 
 ---
 
-## ⚙️ Configuration
+## ✅ Integrity Verification
 
-The image server location is defined in `/mcsdata/config.yml`:
+MCS supports **SHA-256 integrity verification** for `.raw` partition files to detect corruption or tampering during download and cloning.
+
+### The `checksums.sha256` file
+
+Every project directory can include an optional `checksums.sha256` file. If present, MCS automatically verifies that the cloned data matches the expected checksum. The file follows this format:
+
+```
+<sha256_hash> <size_in_bytes> <filename>.raw
+```
+
+Example:
+
+```
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 21474836480 SYSTEM.raw
+a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a  5368709120 HOME.raw
+```
+
+- **`<sha256_hash>`**: 64-character lowercase hex SHA-256 digest of the `.raw` file.
+- **`<size_in_bytes>`**: Exact size of the `.raw` file in bytes. MCS reads precisely this number of bytes from the target partition for verification.
+- **`<filename>.raw`**: Must match the partition name defined in `partition.yml` (e.g., `SYSTEM.raw`, `HOME.raw`).
+
+### How verification works
+
+1. When MCS starts a clone (network or local), `load_partition_scheme` looks for `checksums.sha256` alongside `partition.yml`.
+2. If the file is **missing**, MCS logs a warning and proceeds without verification (backward-compatible).
+3. If present, after writing each `.raw` image to the target partition, MCS calls `verify_partition_checksum`:
+   - Reads the expected SHA-256 and byte size from the file.
+   - Reads exactly `<size_in_bytes>` bytes from the target block device.
+   - Computes the actual SHA-256 digest and compares it to the expected value.
+4. If the checksums **match**, a `[OK]` is logged. If they **mismatch**, a `[ERROR] Checksum MISMATCH` entry is written to the log — but the clone continues (non-blocking by design).
+
+### Generating checksums
+
+On your server or build machine, generate `checksums.sha256` with a simple loop:
+
+```bash
+for f in *.raw; do
+  echo "$(sha256sum "$f" | awk '{print $1}') $(stat -c %s "$f") $f"
+done > checksums.sha256
+```
+
+Resultado:
+
+```
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 21474836480 SYSTEM.raw
+a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a 5368709120 HOME.raw
+```
+
+O manualmente para un solo fichero:
+
+```bash
+SIZE=$(stat -c %s SYSTEM.raw)
+SHA=$(sha256sum SYSTEM.raw | awk '{print $1}')
+echo "$SHA $SIZE SYSTEM.raw" >> checksums.sha256
+```
+
+### Disabling verification
+
+In high-speed local networks where bandwidth is reliable and risk of corruption is low, you can disable checksum verification to save time. Go to **Settings > Verify integrity** in the MCS TUI and toggle it to `false`. The setting is persisted in `/mcsdata/config.yml`:
 
 ```yaml
 settings:
   server: your-server.org
+  server_ip: ""
   keymap: es
+  verify_checksums: true   # set to false to skip SHA-256 verification
 ```
 
-You can change this URL at any time using the **Settings** menu in the MCS TUI.
+When disabled, MCS skips the post-clone checksum read entirely — no time penalty.
+
+---
+
+## ⚙️ Configuration
+
+The system settings are defined in `/mcsdata/config.yml`:
+
+```yaml
+settings:
+  server: your-server.org
+  server_ip: ""
+  keymap: es
+  verify_checksums: true
+```
+
+You can change these settings at any time using the **Settings** menu in the MCS TUI.
 
 ---
 

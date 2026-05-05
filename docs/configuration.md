@@ -54,6 +54,7 @@ settings:
   server: inv.org
   server_ip: ""
   keymap: es
+  verify_checksums: true
 ```
 
 ### Remote Project Server

@@ -25,7 +25,8 @@ The `functions` script (located at `/usr/share/mcs/functions` in the booted syst
 | Function | Arguments | Description |
 | :--- | :--- | :--- |
 | `shrink_part` | `device, id` | Minimizes the size of an ext4 partition to its content size. |
-| `clone_HD` | `source, target` | Clones a source project (directory or URL) to a target block device. Uses high-speed `dd` or `wget | dd` streaming for RAW files. |
+| `clone_HD` | `source, target` | Clones a source project (directory or URL) to a target block device. Uses high-speed `dd` or `wget \| dd` streaming for RAW files. |
+| `verify_partition_checksum` | `device, partition_name` | Verifies the SHA-256 checksum of a written partition against the `checksums.sha256` file from the project. Reads the expected size from the checksums file. |
 | `rescue` | `device` | Reinstalls GRUB and regenerates `fstab` and `initramfs` on a target system. |
 
 ## 🛠️ Usage Example

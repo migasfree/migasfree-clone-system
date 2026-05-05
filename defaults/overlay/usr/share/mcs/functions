@@ -7,6 +7,10 @@ set -o pipefail
 # Must be loaded via load_partition_scheme from a project's partition.yml
 _JSON_PARTITIONS=""
 
+# Path to checksums file (loaded alongside partition.yml)
+_CHECKSUMS_FILE=""
+_VERIFY_CHECKSUMS=1
+
 function mcs_log {
     local _MSG="$1"
     echo "$_MSG"
@@ -17,12 +21,12 @@ function load_partition_scheme {
     local _SOURCE="$1"
     local _FILE="partition.yml"
     local _TEMP="/tmp/partition.yml"
+    local _CHECKSUMS_TEMP="/tmp/checksums.sha256"
 
-    # Reset first
     _JSON_PARTITIONS=""
+    _CHECKSUMS_FILE=""
 
     if [[ "$_SOURCE" == http* ]]; then
-        # Ensure URL ends with / if it's a directory
         local _URL="$_SOURCE"
         [[ "$_URL" != */ ]] && _URL="${_URL%/*}/"
         mcs_log "  [DEBUG] Checking for mandatory partition.yml at ${_URL}${_FILE}"
@@ -38,6 +42,22 @@ function load_partition_scheme {
             _JSON_PARTITIONS="$_NEW_JSON"
             mcs_log "  [DEBUG] Partition scheme loaded from $_FILE"
             rm -f "$_TEMP"
+
+            # Load checksums (optional, warn if missing)
+            if [[ "$_SOURCE" == http* ]]; then
+                local _URL="$_SOURCE"
+                [[ "$_URL" != */ ]] && _URL="${_URL%/*}/"
+                wget -q -O "$_CHECKSUMS_TEMP" "${_URL}checksums.sha256" 2>/dev/null
+            elif [ -d "$_SOURCE" ]; then
+                cp "$_SOURCE/checksums.sha256" "$_CHECKSUMS_TEMP" 2>/dev/null
+            fi
+            if [ -f "$_CHECKSUMS_TEMP" ] && [ -s "$_CHECKSUMS_TEMP" ]; then
+                _CHECKSUMS_FILE="$_CHECKSUMS_TEMP"
+                mcs_log "  [DEBUG] Checksums file loaded"
+            else
+                mcs_log "  [WARNING] No checksums.sha256 found, integrity verification disabled"
+            fi
+
             return 0
         else
             mcs_log "  [ERROR] Failed to parse $_FILE (invalid YAML or missing 'partitions' key)"
@@ -564,6 +584,49 @@ function make_HD {
 }
 
 
+function verify_partition_checksum {
+    local _DEV_PART="$1"
+    local _NAME="$2"
+
+    if [ "$_VERIFY_CHECKSUMS" != "1" ] && [ "$_VERIFY_CHECKSUMS" != "true" ]; then
+        mcs_log "  [INFO] Integrity verification disabled in settings, skipping $_NAME"
+        return 0
+    fi
+
+    if [ -z "$_CHECKSUMS_FILE" ] || [ ! -f "$_CHECKSUMS_FILE" ]; then
+        mcs_log "  [WARNING] No checksums file available, skipping integrity verification"
+        return 0
+    fi
+
+    local _LINE=$(grep "[[:space:]]${_NAME}\.raw$" "$_CHECKSUMS_FILE" 2>/dev/null)
+    if [ -z "$_LINE" ]; then
+        mcs_log "  [WARNING] No checksum entry for $_NAME in checksums file"
+        return 0
+    fi
+
+    local _EXPECTED_SHA=$(echo "$_LINE" | awk '{print $1}')
+    local _EXPECTED_SIZE=$(echo "$_LINE" | awk '{print $2}')
+
+    if [ -z "$_EXPECTED_SHA" ] || [ -z "$_EXPECTED_SIZE" ]; then
+        mcs_log "  [ERROR] Invalid checksum entry for $_NAME: $_LINE"
+        return 1
+    fi
+
+    mcs_log "  [+] Verifying integrity of $_NAME (${_EXPECTED_SIZE} bytes)..."
+    local _ACTUAL_SHA=$(dd if="$_DEV_PART" bs=1M 2>/dev/null | head -c "$_EXPECTED_SIZE" | sha256sum | awk '{print $1}')
+
+    if [ "$_ACTUAL_SHA" = "$_EXPECTED_SHA" ]; then
+        mcs_log "  [OK] Checksum verified for $_NAME"
+        return 0
+    else
+        mcs_log "  [ERROR] Checksum MISMATCH for $_NAME!"
+        mcs_log "    Expected: $_EXPECTED_SHA"
+        mcs_log "    Actual:   $_ACTUAL_SHA"
+        return 1
+    fi
+}
+
+
 # clone_HD clon.qcow2 /dev/sdx
 function clone_HD {
     local _SOURCE="$1"
@@ -626,15 +689,18 @@ function clone_HD {
                     fi
                     echo "  [DEBUG] Target device: $_DEV_PART_TARGET" | tee -a /tmp/mcs-clone.log
 
+                    # Use partition name directly. Fallback to DATA.raw only if name is HOME and .raw is missing
+                    # TODO: Move this logic to project metadata in partition.yml to avoid hardcoded fallbacks
                     local _REMOTE_URL="${_SOURCE}${_NAME}.raw"
                     if [ "$_NAME" = "HOME" ]; then
-                        if ! wget --spider -q "${_REMOTE_URL}" 2>/dev/null; then
-                            _REMOTE_URL="${_SOURCE}DATA.raw"
-                        fi
+                        # Only use DATA.raw if we are sure it's the right fallback, but for now 
+                        # let's just use the name from partition.yml which is more predictable.
+                        _REMOTE_URL="${_SOURCE}${_NAME}.raw"
                     fi
                     mcs_log "  [+] Copying partition $_NAME via wget from ${_REMOTE_URL}..."
                     wget -O - "$_REMOTE_URL" | dd of="${_DEV_PART_TARGET}" bs=1M status=progress 2>&1 | tee -a /tmp/mcs-clone.log
                     sync
+                    verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || mcs_log "  [WARNING] Integrity check failed for $_NAME"
                 elif [ -d "$_SOURCE" ]; then
                     _DEV_PART_TARGET=$(part_by_label_on_device "$_TARGET" "$_NAME")
                     if [ -z "$_DEV_PART_TARGET" ]; then
@@ -651,6 +717,7 @@ function clone_HD {
                         mcs_log "  [+] Copying partition $_NAME from ${_RAW_FILE}..."
                         dd if="$_RAW_FILE" of="${_DEV_PART_TARGET}" bs=1M status=progress 2>&1 | tee -a /tmp/mcs-clone.log
                         sync
+                        verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || mcs_log "  [WARNING] Integrity check failed for $_NAME"
                     else
                         _DEV_PART_SOURCE=$(part_by_label_on_device "$_SOURCE" "$_NAME")
                         if [ -z "$_DEV_PART_SOURCE" ]; then
@@ -673,6 +740,7 @@ function clone_HD {
                             mount -o rw,noatime,nodiratime,nodiscard -t auto "${_DEV_PART_TARGET}" /mnt/target 2>&1 | tee -a /tmp/mcs-clone.log
                             rsync -aHAXx --info=progress2 --numeric-ids --ignore-errors --timeout=120 --delete /mnt/source/ /mnt/target/ 2>&1 | tee -a /tmp/mcs-clone.log
                             sync
+                            verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || mcs_log "  [WARNING] Integrity check failed for $_NAME"
 
                             umount /mnt/source 2>/dev/null
                             rmdir /mnt/source
