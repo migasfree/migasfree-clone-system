@@ -65,6 +65,7 @@ Management tools for your USB drive:
 ### ⚙️ Settings
 
 - Change the **Server URL** if you need to point to a different repository.
+- Change the **Server IP** (DNS Override): Enter the static IP of your server if DNS resolution is not available in your current network. This will force the system to resolve the domain to that IP.
 - Change the **Keyboard Layout** (default is usually Spanish).
 
 ---

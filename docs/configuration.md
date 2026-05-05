@@ -31,6 +31,7 @@ Alternatively, you can modify the variables at the top of the **`/scripts/build.
 
 - **`SIZE_MB`**: Adjust this if you plan to include many large APKs or default projects in the `MCS_DATA` partition of the generated file.
 - **`SERVER`**: The default domain where MCS will look for system projects.
+- **`SERVER_IP`**: (Optional) Static IP address for the server. Use this for lab environments without DNS.
 - **`KEYMAP`**: The default keyboard layout (e.g., `es`, `us`, `fr`).
 
 ### Customizing the Filesystem (Overlay)
@@ -51,6 +52,7 @@ Once booted, the system stores its configuration in the `MCS_DATA` partition:
 ```yaml
 settings:
   server: inv.org
+  server_ip: ""
   keymap: es
 ```
 

@@ -31,7 +31,7 @@ The `functions` library defines a default layout for target systems (clones):
 
 The build process is containerized to ensure all dependencies (`parted`, `grub`, `rsync`) are consistent.
 
-1. **Host Orchestration (`/build`)**: 
+1. **Host Orchestration (`/scripts/build.sh`)**:
    - Prepares a sparse file.
    - Sets up a loop device on the host.
    - Triggers the Docker container with privileged access.
@@ -43,13 +43,11 @@ The build process is containerized to ensure all dependencies (`parted`, `grub`,
    - Configures the bootloader (GRUB) for both targets.
    - Finalizes by renaming the raw `.img` file to a bootable `.iso` format for broader compatibility with flashing tools.
 
-## 🔄 Cloning Mechanism
+MCS uses a **block-level streaming approach** using `dd` for maximum performance. This "Turbo Clone" mechanism directly pipes the RAW partition files (`SYSTEM.raw`, `DATA.raw`) from the source to the target partitions.
 
-MCS uses a file-level cloning approach rather than block-level (dd) for the main partitions (`SYSTEM`, `HOME`). This allows:
-
-- **Resizing**: Images can be deployed to disks of different sizes.
-- **Speed**: Only used blocks are transferred via `rsync`.
-- **Flexibility**: Changes can be made to the filesystem type during deployment.
+- **Speed**: Network deployment reaches the maximum bandwidth available (100MB/s+ on Gigabit networks).
+- **Simplicity**: No complex mounting (NBD) or file-level synchronization is required.
+- **Reliability**: Block-level copies ensure the exact state of the source system, including complex permissions and special files.
 
 ### Sequence Diagram: Cloning Process
 
@@ -58,24 +56,25 @@ sequenceDiagram
     participant U as User (TUI)
     participant M as menu.sh
     participant F as functions
-    participant S as Source Image (QCOW2)
+    participant S as Source (RAW Project)
     participant T as Target Disk
 
     U->>M: Select "Clone"
-    M->>F: connect_HD(Source)
-    F->>S: mount via qemu-nbd
     M->>F: make_partitions(Target)
-    F->>T: create GPT & Partitions
-    M->>F: rsync(Source, Target)
-    F->>T: Transfer files
+    F->>T: Create GPT & Partitions (EFI, BIOS, SYSTEM, DATA)
+    M->>F: clone_HD(Source, Target)
+    S->>T: Stream SYSTEM.raw via dd
+    S->>T: Stream DATA.raw via dd
     M->>F: rescue(Target)
-    F->>T: Install GRUB & Update Initramfs
+    F->>T: Install GRUB & Fix fstab
     M->>U: Show "Success"
 ```
 
 ## 🌐 Networking
 
 MCS is configured to use DHCP on all interfaces by default. Upon boot, it attempts to:
+
 1. Initialize networking.
-2. Download the CA certificate from the configured `SERVER_URL`.
-3. Update system certificates to allow secure image downloads via HTTPS.
+2. Get an IP address via DHCP.
+3. Check connectivity to the `SERVER_URL`.
+4. Update system certificates to allow secure image downloads via HTTPS.

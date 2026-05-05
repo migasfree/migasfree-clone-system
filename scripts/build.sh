@@ -61,6 +61,7 @@ then
         -e LOOPDEV=${LOOPDEV} \
         -e IMG=$IMG \
         -e SERVER=${SERVER} \
+        -e SERVER_IP="${SERVER_IP}" \
         -e KEYMAP=${KEYMAP} \
         -v ${ARTIFACTSDIR}:/artifacts \
         migasfree/mcs:$MCS_VERSION makeimg

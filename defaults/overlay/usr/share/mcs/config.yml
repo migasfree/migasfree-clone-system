@@ -1,3 +1,4 @@
 settings:
   server: inv.org
+  server_ip: ""
   keymap: es

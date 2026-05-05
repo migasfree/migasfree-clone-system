@@ -77,8 +77,21 @@ find_partition_by_label() {
 # LOAD SETTINGS
 # =============
 SERVER_URL=$(yq '.settings.server' < ${CONFIG_FILE})
+SERVER_IP=$(yq '.settings.server_ip' < ${CONFIG_FILE})
 KEYMAP=$(yq '.settings.keymap' < ${CONFIG_FILE})
 TITLE="Migasfree Clone System ${TAG}"
+
+
+update_hosts() {
+    # Remove old entry if exists
+    sed -i "/ ${SERVER_URL}$/d" /etc/hosts
+    # Add new entry if IP is set
+    if [[ -n "$SERVER_IP" && -n "$SERVER_URL" ]]; then
+        echo "${SERVER_IP} ${SERVER_URL}" >> /etc/hosts
+    fi
+}
+
+update_hosts
 
 
 if [ -f /mcsdata/firstrun ]
@@ -391,14 +404,16 @@ settings_menu() {
     while true; do
         CHOICE=$(dialog --clear --backtitle "${TITLE} > Settings" \
                       --title "Settings Menu" \
-                      --menu "" 15 50 2 \
-                      1 "server: ${SERVER_URL}" \
-                      2 "keymap: ${KEYMAP}" \
+                      --menu "" 15 50 3 \
+                      1 "Server: ${SERVER_URL}" \
+                      2 "Server IP: ${SERVER_IP:-Dynamic (DNS)}" \
+                      3 "Keymap: ${KEYMAP}" \
                       3>&1 1>&2 2>&3)
 
         case $CHOICE in
             1) setting_server ;;
-            2) setting_keymap ;;
+            2) setting_ip ;;
+            3) setting_keymap ;;
             *) return ;;
         esac
     done
@@ -409,8 +424,15 @@ setting_server() {
     SERVER_URL=$(dialog --stdout --inputbox "Enter the server URL:" 10 50 "$SERVER_URL")
     if [[ -n $SERVER_URL ]]; then
         yq -i ".settings.server = \"${SERVER_URL}\"" ${CONFIG_FILE}
+        update_hosts
     fi
     TITLE="Migasfree Clone System ${TAG}"
+}
+
+setting_ip() {
+    SERVER_IP=$(dialog --stdout --inputbox "Enter Server IP (leave empty for DNS):" 10 50 "$SERVER_IP")
+    yq -i ".settings.server_ip = \"${SERVER_IP}\"" ${CONFIG_FILE}
+    update_hosts
 }
 
 setting_keymap() {
