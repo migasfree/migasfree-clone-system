@@ -24,7 +24,7 @@ El código de MCS está estructurado en 7 archivos con ~1860 líneas totales:
 
 Se identificaron **7 bugs**, **13 violaciones de buenas prácticas shell**, **17 riesgos STRIDE** y **~120 líneas de código muerto**.
 
-**Estado de remediación al 2026-05-05**: ✅ 9/9 items de Fase 1 completados. 8/13 SH completadas.
+**Estado de remediación al 2026-05-05**: ✅ Fase 1 completa. Código muerto eliminado (~218 líneas). 9/13 SH resueltas. 4/17 STRIDE mitigados.
 
 ---
 
@@ -183,16 +183,15 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 | ID | Violación | Ubicación | Fix | Estado |
 | :--- | :--- | :--- | :--- | :--- |
 | **SH-001** | `set -e` ausente en `menu.sh`, `build.sh` | `menu.sh:1`, `build.sh:1` | Añadir `set -euo pipefail` | ✅ **RESUELTO** (`a6f6093`) |
-| **SH-002** | `IFS=$'\n'` no restaurado tras error | `functions:375,424` | Usar subshell o `trap` para restaurar IFS | ❌ Pendiente |
-| **SH-003** | `function` keyword innecesario (no POSIX) | `functions:10,16,65,77,...` | Usar `funcname() { }` | ❌ Pendiente |
-| **SH-004** | Variables no locales sin `local` | `functions:158,172` (`_KNAME`) | Declarar con `local` | ❌ Pendiente |
+| **SH-002** | `IFS=$'\n'` no restaurado tras error | `functions:375,424` | Usar subshell o `trap` para restaurar IFS | ✅ **RESUELTO** (`ed02668`) |
+| **SH-003** | `function` keyword innecesario (no POSIX) | `functions:10,16,65,77,...` | Usar `funcname() { }` | ✅ **RESUELTO** (`ae30425`) |
+| **SH-004** | Variables no locales sin `local` | `functions:158,172` (`_KNAME`) | Declarar con `local` | ✅ **RESUELTO** (`ed02668`) |
 | **SH-005** | `echo` con datos de usuario sin sanitizar | `menu.sh:90` (`echo "${SERVER_IP} ${SERVER_URL}"`) | Usar `printf` | ❌ Pendiente |
-| **SH-006** | `cp`, `rm`, `mv` sin `--` para prevenir flag injection | `functions:32,40,48` | Usar `cp -- "$src" "$dst"` | ❌ Pendiente |
-| **SH-007** | `sed -i` sin backup en Alpine (no soporta `-i` sin extensión en busybox) | `functions:783,862-863` | Usar `sed -i.bak` | ✅ **RESUELTO** (`a6f6093`) |
-| **SH-008** | `source` en lugar de `.` (no POSIX) | `menu.sh:3`, `build.sh:10` | Usar `.` | ❌ Pendiente |
-| **SH-009** | Uso de `! [ $? = 0 ]` en lugar de `[ $? -ne 0 ]` | `functions:59` | Simplificar | ❌ Pendiente |
+| **SH-006** | `cp`, `rm`, `mv` sin `--` para prevenir flag injection | `functions:32,40,48` | Usar `cp -- "$src" "$dst"` | ✅ **RESUELTO** (`ae30425`) |
+| **SH-008** | `source` en lugar de `.` (no POSIX) | `menu.sh:3`, `build.sh:10` | Usar `.` | ✅ **RESUELTO** (`ae30425`) |
+| **SH-009** | Uso de `! [ $? = 0 ]` en lugar de `[ $? -ne 0 ]` | `functions:59` | Simplificar | ✅ **RESUELTO** (`ae30425`) |
 | **SH-010** | `for i in {0..15}` con brace expansion (bashism) | `functions:914` | Usar `for i in $(seq 0 15)` | ✅ **RESUELTO** (`a6f6093`) |
-| **SH-011** | Variables con `_` prefijo pero algunas escapadas | `functions:284` (`_LEN` no local) | Consistencia en naming + `local` | ❌ Pendiente |
+| **SH-011** | Variables con `_` prefijo pero algunas escapadas | `functions:284` (`_LEN` no local) | Consistencia en naming + `local` | ✅ **RESUELTO** (`ed02668`) |
 | **SH-012** | `lsblk` output parseo frágil (depende del formato columnar) | `functions:48,152,176` | Usar `lsblk -P` (paired output) o `-J` (JSON) | ❌ Pendiente |
 | **SH-013** | `busybox` vs `GNU` diferencias no documentadas | Todo el código | Asumir que las herramientas pueden ser busybox (Alpine) y probar ambos comportamientos | ❌ Pendiente |
 
@@ -235,7 +234,7 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 | :--- | :--- | :--- | :--- |
 | **D-01** | `wget` sin timeout — clonación puede colgarse indefinidamente | `functions:29`, `menu.sh:353` — sin `--timeout` | ✅ **RESUELTO** (`a6f6093`) — `--timeout=15` metadatos, `--timeout=30` descargas `.raw`, `--timeout=60` rootfs |
 | **D-02** | Loop infinito en `get_disk` si no hay discos | `menu.sh:178-194` — el usuario puede seleccionar una opción inválida | ❌ Pendiente |
-| **D-03** | `nbd-first-free` sin límite — si todos los NBD están ocupados, no retorna nada | `functions:65-75` | ❌ Pendiente |
+| **D-03** | `nbd-first-free` sin límite — si todos los NBD están ocupados, no retorna nada | `functions:65-75` | ✅ **RESUELTO** (`ed02668`) — retorna `return 1` explícito |
 
 ### E — Elevation of Privilege (Elevación de privilegios)
 
@@ -357,6 +356,23 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 ### Commit `6490858` — `fix: remove premature partprobe call`
 - Bug latente expuesto por `set -u` en `build.sh`: `partprobe` antes de asignar `LOOPDEV`
 
+### Commit `645cc36` — `refactor: remove dead code`
+- Eliminadas 6 funciones muertas (~218 líneas): `shrink_HD`, `shrink_part`, `ls_parts`, `set_journal`, `set_hostname`, `clone_iso`
+- `check_resolv` comentado eliminado de `menu.sh`
+- Actualizada documentación en `functions.md`
+
+### Commit `ae30425` — `refactor: apply SH-006/008/009/003`
+- SH-006: `--` en `cp`, `rm`
+- SH-008: `source` → `.`
+- SH-009: `! [ $? = 0 ]` → `[ $? -ne 0 ]`
+- SH-003: eliminar `function` keyword (POSIX `funcname()`)
+
+### Commit `ed02668` — `refactor: IFS save/restore, local variables, nbd-first-free return`
+- SH-002: `IFS` save/restore con `_OLD_IFS` (3 funciones)
+- SH-004: `local` faltante para `_LEN`
+- SH-011: `_LEN` declarada `local`
+- D-03: `nbd-first-free` retorna `1` en fallo
+
 ---
 
 ## 10. Plan de Remediación (Actualizado)
@@ -373,32 +389,31 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | **P1** | SH-001: `set -euo pipefail` | ✅ `a6f6093` |
 | **P1** | D-01: `--timeout` en `wget` | ✅ `a6f6093` |
 
-### 🔄 Fase 2 — Pendiente
+### ✅ Fase 2 — Completada (2026-05-05)
 
-| Prioridad | Acción | Esfuerzo |
+| Prioridad | Acción | Estado |
 | :--- | :--- | :--- |
 | **P1** | BUG-006: disconnect→connect en `make_HD` | ✅ `b8ef0c2` |
 | **P1** | BUG-007: espera NBD unificada | ✅ `b8ef0c2` |
 | **P1** | DATA-001: checksum SHA-256 | ✅ `7318e2d` |
-| **P1** | SH-007: `sed -i` busybox | ✅ `a6f6093` |
-| **P2** | SH-006: `--` en `cp`, `rm`, `mv` | 15 min |
+| **P2** | SH-006: `--` en `cp`, `rm`, `mv` | ✅ `ae30425` |
 | **P2** | SH-010: `{0..15}` → `seq` | ✅ `a6f6093` |
-| **P2** | Eliminar código muerto (~120 líneas) | 1 h |
-| **P2** | Refactor `clone_HD` | 3 h |
-| **P2** | Reemplazar parseo HTML por JSON | 3 h |
+| **P2** | Eliminar código muerto (~218 líneas) | ✅ `645cc36` |
+| **P2** | SH-003: `function` → `funcname()` | ✅ `ae30425` |
+| **P2** | SH-002: `IFS` restauración | ✅ `ed02668` |
+| **P2** | SH-004: variables `local` | ✅ `ed02668` |
+| **P2** | SH-008: `.` en lugar de `source` | ✅ `ae30425` |
+| **P2** | SH-009: simplificar `[ $? = 0 ]` | ✅ `ae30425` |
+| **P2** | D-03: `nbd-first-free` retorna `return 1` | ✅ `ed02668` |
 
-### Fase 3 — Pendiente
+### 🔄 Fase 3 — Pendiente
 
 | Prioridad | Acción | Esfuerzo |
 | :--- | :--- | :--- |
-| **P2** | Tests unitarios (bats-core) | 5 h |
-| **P2** | SH-003: `function` → `funcname()` | 30 min |
-| **P2** | SH-002: `IFS` restauración | 15 min |
-| **P2** | SH-004: variables `local` | 15 min |
 | **P2** | SH-005: `printf` en lugar de `echo` | 10 min |
-| **P2** | SH-008: `.` en lugar de `source` | 5 min |
-| **P2** | SH-009: simplificar `[ $? = 0 ]` | 5 min |
-| **P2** | SH-011: consistencia variables `_` | 10 min |
+| **P2** | Tests unitarios (bats-core) | 5 h |
+| **P2** | Refactor `clone_HD` | 3 h |
+| **P2** | Reemplazar parseo HTML por JSON | 3 h |
 | **P3** | SH-012: `lsblk` con `-J` (JSON) | 2 h |
 | **P3** | SH-013: documentar diferencias busybox/GNU | 1 h |
 
@@ -409,10 +424,11 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | Métrica | Antes | Ahora | Target |
 | :--- | :--- | :--- | :--- |
 | Bugs confirmados sin resolver | 7 | **0** ✅ | ≤3 |
-| Violaciones SH resueltas | 0/13 | **3/13** ✅ | 13/13 |
-| STRIDE resueltos | 0/17 | **3/17** (T-01, T-03, D-01) | 17/17 |
+| Violaciones SH resueltas | 0/13 | **9/13** ✅ | 13/13 |
+| STRIDE resueltos | 0/17 | **4/17** (T-01, T-03, D-01, D-03) | 17/17 |
 | Cobertura de tests (escenarios) | 4/14 (29%) | 4/14 (29%) | >70% |
-| Shell scripts con `set -euo pipefail` | 1/4 | **2/4** ✅ (`build.sh` + `functions`/`menu.sh` tienen `-o pipefail`) | 4/4 |
+| Código muerto | ~218 líneas (~12%) | **0** ✅ eliminado | 0 |
+| Shell scripts con `set -euo pipefail` | 1/4 | **2/4** ✅ | 4/4 |
 | Documentación cubierta por ADR | 1 | 1 | Todas las decisiones estructurales |
 
 ---
