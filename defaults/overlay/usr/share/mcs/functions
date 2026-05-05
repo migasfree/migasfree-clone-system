@@ -51,7 +51,7 @@ EOM
 lsmod |grep "^nbd " >/dev/null
 if ! [ $? = 0 ]
 then
-    modprobe nbd || :
+    modprobe nbd max_part=16 || :
 fi
 
 
@@ -71,18 +71,58 @@ function connect_HD {
     local _TARGET="$1"
     local _DEVICE=""
 
-    if [ -f $_TARGET ]
-    then
+    if [[ "$_TARGET" == http* ]]; then
+        if [[ "$_TARGET" == */ ]]; then
+            # Directory of raw images, no NBD needed
+            echo "$_TARGET"
+            return 0
+        fi
+        # Remote RAW image via HTTP via NBD
+        echo "  [DEBUG] Connecting remote RAW image $_TARGET via NBD..." >&2
         _DEVICE=$(nbd-first-free)
-        qemu-nbd -n -c  "$_DEVICE" "$_TARGET"
+        echo "  [DEBUG] Using NBD device: $_DEVICE" >&2
+
+        local _IMG_OPTS="driver=raw,file.driver=http,file.url=$_TARGET,readahead=8388608"
+        echo "  [DEBUG] Image opts: $_IMG_OPTS" >&2
+
+        qemu-nbd -r -c "$_DEVICE" --image-opts "$_IMG_OPTS" >/dev/null 2>&1
+        
+        # Wait for partitions to appear (up to 30 seconds)
+        echo "  [DEBUG] Waiting for partitions on $_DEVICE..." >&2
+        local timeout=30
+        while [ $timeout -gt 0 ]; do
+            partprobe "$_DEVICE" >&2 2>/dev/null
+            # Also try partx as fallback for NBD devices
+            partx -a "$_DEVICE" 2>/dev/null || :
+            if [ -e "${_DEVICE}p1" ] || [ -e "${_DEVICE}1" ]; then
+                echo "  [DEBUG] Partitions detected after $((30 - timeout))s" >&2
+                echo "$_DEVICE"
+                return 0
+            fi
+            sleep 1
+            let timeout--
+        done
+        echo "  [ERROR] Partitions never appeared on $_DEVICE" >&2
+        qemu-nbd -d "$_DEVICE" >/dev/null 2>&1
+        return 1
+    elif [ -d "$_TARGET" ]; then
+        # Directory of raw images
+        echo "$_TARGET"
+        return 0
+    elif [ -f "$_TARGET" ]; then
+        # Local file
+        echo "  [DEBUG] Connecting file $_TARGET via NBD..." >&2
+        _DEVICE=$(nbd-first-free)
+        echo "  [DEBUG] Using NBD device: $_DEVICE" >&2
+        qemu-nbd -n -c "$_DEVICE" "$_TARGET" 2>&1 | tee -a /tmp/mcs-clone.log
         sleep 2
-        if [ $? = 0 ]
-        then
+        partprobe "$_DEVICE" >&2
+        if [ $? = 0 ]; then
             echo "$_DEVICE"
         fi
-    elif [ -b $_TARGET ]
-    then
-        echo $_TARGET
+    elif [ -b "$_TARGET" ]; then
+        # Block device
+        echo "$_TARGET"
     fi
 
 }
@@ -251,8 +291,21 @@ function dev_by_part {
 function part_by_name {
     local _DEVICE="$1"
     local _NAME="$2"
-    local _NUMBER=$(echo "$_JSON_PARTITIONS" | jq ' .[] | select( .name == "'${_NAME}'") | .number | tonumber')
-    part_by_id ${_DEVICE} ${_NUMBER}
+    local _DEV_PART=$(part_by_label_on_device "${_DEVICE}" "${_NAME}")
+    if [ -z "${_DEV_PART}" ]; then
+        local _NUMBER=$(echo "$_JSON_PARTITIONS" | jq ' .[] | select( .name == "'${_NAME}'") | .number | tonumber')
+        _DEV_PART=$(part_by_id ${_DEVICE} ${_NUMBER})
+    fi
+    echo "${_DEV_PART}"
+}
+
+# Find partition by label ON A SPECIFIC DEVICE
+function part_by_label_on_device {
+    local _DEVICE="$1"
+    local _LABEL="$2"
+    # Use lsblk to find partitions belonging to _DEVICE with a specific LABEL
+    # Redirect errors to stderr to avoid capturing them in variables
+    lsblk -lnp -o NAME,LABEL "${_DEVICE}" 2>/dev/null | grep -w "${_LABEL}" | awk '{print $1}' | head -n 1
 }
 
 # part_label /dev/sda5  -> HOME
@@ -416,65 +469,36 @@ function max_home_size {
 # make_partitions "/dev/loop01"
 function make_partitions {
     local _DEVICE="$1"
-    local _GDISK=""
-    local _PARTITIONS=$(echo "$_JSON_PARTITIONS"|jq -r '.[] | .number +";"+ .name +";"+ .size +";"+ .type ')
-    local _PARTITION
-    local _NUMBER
-    local _NAME
-    local _SIZE
-    local _TYPE
+    local _SFDISK_SCRIPT="/tmp/sfdisk.script"
 
     echo
-    echo "Creating a new empty GPT partition table on $_DEVICE"
-    (
-    echo "o"
-    echo "Y"
-    echo "w"
-    echo "Y"
-    ) | gdisk "$_DEVICE" &>/dev/null
+    echo "Creating a new GPT partition table on $_DEVICE using sfdisk"
+    
+    # 1: EFI (512MB) -> C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+    # 2: BIOS (1MB)  -> 21686148-6449-6E6F-744E-656564454649 (BIOS boot partition)
+    # 3: SWAP (4GB)  -> 0657FD6D-A4AB-43C4-84E5-0933C84B4F4F
+    # 4: SYSTEM (20GB)-> 0FC63DAF-8483-4772-8E79-3D69D8477DE4 (Linux filesystem)
+    # 5: HOME (Rest) -> 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+
+    cat <<EOF > "$_SFDISK_SCRIPT"
+label: gpt
+unit: sectors
+first-lba: 2048
+
+1 : start=2048, size=1048576, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI"
+2 : size=2048, type=21686148-6449-6E6F-744E-656564454649, name="BIOS"
+3 : size=8388608, type=0657FD6D-A4AB-43C4-84E5-0933C84B4F4F, name="SWAP"
+4 : size=41943040, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="SYSTEM"
+5 : type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="HOME"
+EOF
+
+    sfdisk "$_DEVICE" < "$_SFDISK_SCRIPT" &>/dev/null
     check_result
-    partprobe
-
-    echo
-    echo "Creando Particiones"
-    IFS=$'\n'
-    for _PARTITION in $_PARTITIONS
-    do
-        _NUMBER=$(echo "$_PARTITION" | awk -F ";" '{print $1}')
-        _NAME=$(echo "$_PARTITION" | awk -F ";" '{print $2}')
-        _SIZE=$(echo "$_PARTITION" | awk -F ";" '{print $3}')
-        _TYPE=$(echo "$_PARTITION" | awk -F ";" '{print $4}')
-
-        if [ $_NAME = "HOME" ]
-        then
-            _SIZE=$(max_home_size $_DEVICE)
-        fi
-
-
-        _GDISK=$(
-            echo "$_GDISK";
-            echo "n";
-            echo "$_NUMBER";
-            echo;
-            echo "+${_SIZE}M";
-            echo "$_TYPE";
-            echo "c";
-            if ! [ "$_NUMBER" = "1" ]; then echo "$_NUMBER"; fi;
-            echo "$_NAME"
-            )
-    done
-    IFS=''
-
-    echo "o
-Y$(echo "$_GDISK")
-w
-Y
-" | gdisk ${_DEVICE}  &>/dev/null
-    check_result
-
-    partprobe
-    gdisk -l ${_DEVICE}
-
+    
+    partprobe "$_DEVICE"
+    sync
+    sleep 2
+    sfdisk -l "$_DEVICE"
 }
 
 function check_result {
@@ -529,8 +553,23 @@ function clone_HD {
 
     make_HD "$_TARGET" ""
 
-    _SOURCE=$(connect_HD $_SOURCE)
-    _TARGET=$(connect_HD $_TARGET)
+    echo "  [DEBUG] Argument 1 (Image Path): $1" >&2
+    echo "  [DEBUG] Argument 2 (Target Disk): $2" >&2
+
+    _SOURCE=$(connect_HD "$1")
+    if [ -z "$_SOURCE" ]; then
+        echo "  [ERROR] Failed to connect source: $1" >&2
+        return 1
+    fi
+    _TARGET=$(connect_HD "$2")
+    if [ -z "$_TARGET" ]; then
+        echo "  [ERROR] Failed to connect target: $2" >&2
+        disconnect_HD "$_SOURCE"
+        return 1
+    fi
+    
+    echo "  [DEBUG] Connected Source: $_SOURCE" >&2
+    echo "  [DEBUG] Connected Target: $_TARGET" >&2
 
     IFS=$'\n'
     for _PARTITION in $_PARTITIONS
@@ -544,8 +583,19 @@ function clone_HD {
                 then
                     _SIZE=$(max_home_size $_TARGET)
                 fi
-                _DEV_PART_SOURCE=$(part_by_id $_SOURCE $_NUMBER)
-                _DEV_PART_TARGET=$(part_by_id $_TARGET $_NUMBER)
+                _DEV_PART_SOURCE=$(part_by_label_on_device "$_SOURCE" "$_NAME")
+                _DEV_PART_TARGET=$(part_by_label_on_device "$_TARGET" "$_NAME")
+
+                # Fallback to partition number if label not found on source
+                if [ -z "$_DEV_PART_SOURCE" ]; then
+                    _DEV_PART_SOURCE=$(part_by_id "$_SOURCE" "$_NUMBER")
+                fi
+                if [ -z "$_DEV_PART_TARGET" ]; then
+                    _DEV_PART_TARGET=$(part_by_id "$_TARGET" "$_NUMBER")
+                fi
+
+                echo "  [DEBUG] Source device: $_DEV_PART_SOURCE" | tee -a /tmp/mcs-clone.log
+                echo "  [DEBUG] Target device: $_DEV_PART_TARGET" | tee -a /tmp/mcs-clone.log
 
                 echo
                 echo "Clonando: $_NAME"
@@ -553,20 +603,73 @@ function clone_HD {
 
 
                 mkdir -p /mnt/source
-                mount -o ro -t auto ${_DEV_PART_SOURCE} /mnt/source
-
+                _FSTYPE=$(blkid -o value -s TYPE "${_DEV_PART_SOURCE}")
+                if [ -n "$_FSTYPE" ]; then
+                    mount -o ro -t "$_FSTYPE" "${_DEV_PART_SOURCE}" /mnt/source 2>&1 | tee -a /tmp/mcs-clone.log
+                else
+                    mount -o ro "${_DEV_PART_SOURCE}" /mnt/source 2>&1 | tee -a /tmp/mcs-clone.log
+                fi
 
                 mkdir -p /mnt/target
-                mount -o rw,noatime,nodiratime,nodiscard -t auto ${_DEV_PART_TARGET} /mnt/target
+                mount -o rw,noatime,nodiratime,nodiscard -t auto "${_DEV_PART_TARGET}" /mnt/target 2>&1 | tee -a /tmp/mcs-clone.log
 
+                if [[ "$_SOURCE" == http* ]]; then
+                    # =========================================================
+                    # TURBO CLONE: wget | dd (Fastest possible HTTP stream)
+                    # =========================================================
+                    local _REMOTE_URL="${_SOURCE}${_NAME}.raw"
+                    # Fallback for HOME -> DATA.raw
+                    if [ "$_NAME" = "HOME" ]; then
+                        # Try to detect if HOME.raw exists, else use DATA.raw
+                        # We use a simple HEAD request via wget to check existence
+                        if ! wget --spider -q "${_REMOTE_URL}" 2>/dev/null; then
+                            _REMOTE_URL="${_SOURCE}DATA.raw"
+                        fi
+                    fi
+                    echo "  [+] Copying partition $_NAME via wget from ${_REMOTE_URL}..." | tee -a /tmp/mcs-clone.log
+                    umount /mnt/target 2>/dev/null
+                    wget -O - "$_REMOTE_URL" | dd of="${_DEV_PART_TARGET}" bs=1M status=progress 2>&1 | tee -a /tmp/mcs-clone.log
+                    sync
+                elif [ -d "$_SOURCE" ]; then
+                    # =========================================================
+                    # LOCAL CLONE: dd (For directory-based RAW images)
+                    # =========================================================
+                    local _RAW_FILE="${_SOURCE}/${_NAME}.raw"
+                    if [ "$_NAME" = "HOME" ] && [ ! -f "$_RAW_FILE" ]; then
+                        _RAW_FILE="${_SOURCE}/DATA.raw"
+                    fi
 
-                #rsync --info=progress2 -aHAXx /mnt/source/ /mnt/target
-                rsync --info=stats2 -aHAXx /mnt/source/ /mnt/target
-                #dd if=$(part_by_id $_SOURCE $_NUMBER) of=${_DEV_PART_TARGET} bs=1M oflag=direct status=progress
-                sync
+                    if [ -f "$_RAW_FILE" ]; then
+                        echo "  [+] Copying partition $_NAME from ${_RAW_FILE}..." | tee -a /tmp/mcs-clone.log
+                        umount /mnt/target 2>/dev/null
+                        dd if="$_RAW_FILE" of="${_DEV_PART_TARGET}" bs=1M status=progress 2>&1 | tee -a /tmp/mcs-clone.log
+                        sync
+                    else
+                        echo "  [WARNING] Raw image not found: $_RAW_FILE, falling back to rsync..." | tee -a /tmp/mcs-clone.log
+                        # Fallback to rsync if partition source exists
+                        if [ -n "$_DEV_PART_SOURCE" ]; then
+                            mkdir -p /mnt/source
+                            _FSTYPE=$(blkid -o value -s TYPE "${_DEV_PART_SOURCE}")
+                            if [ -n "$_FSTYPE" ]; then
+                                mount -o ro -t "$_FSTYPE" "${_DEV_PART_SOURCE}" /mnt/source 2>&1 | tee -a /tmp/mcs-clone.log
+                            else
+                                mount -o ro "${_DEV_PART_SOURCE}" /mnt/source 2>&1 | tee -a /tmp/mcs-clone.log
+                            fi
 
-                umount /mnt/source 2&>/dev/null
-                rmdir /mnt/source
+                            echo "  [+] Copying files for $_NAME (rsync)..." | tee -a /tmp/mcs-clone.log
+                            mkdir -p /mnt/target
+                            mount -o rw,noatime,nodiratime,nodiscard -t auto "${_DEV_PART_TARGET}" /mnt/target 2>&1 | tee -a /tmp/mcs-clone.log
+                            rsync -aHAXx --info=progress2 --numeric-ids --ignore-errors --timeout=120 --delete /mnt/source/ /mnt/target/ 2>&1 | tee -a /tmp/mcs-clone.log
+                            sync
+                            
+                            umount /mnt/source 2&>/dev/null
+                            rmdir /mnt/source
+                        fi
+                    fi
+                else
+                    # Fallback for other cases (should not happen with new structure)
+                    echo "  [ERROR] Unknown source type for $_NAME cloning." | tee -a /tmp/mcs-clone.log
+                fi
 
                 umount /mnt/target 2&>/dev/null
                 rmdir /mnt/target
@@ -608,84 +711,85 @@ function set_hostname {
 }
 
 
-# rescue
 function rescue {
     local _DEVICE="$1"
     local _MOUNT="/mnt/rescue"
 
-
     echo
-    echo "GRUB"
-    echo "===="
+    echo "Configuring Bootloader (Rescue)"
+    echo "=============================="
 
-    _DEVICE=$(connect_HD ${_DEVICE})
+    _DEVICE=$(connect_HD "${_DEVICE}")
+    local _DEV_SYSTEM=$(part_by_name "$_DEVICE" SYSTEM)
+    local _DEV_EFI=$(part_by_name "$_DEVICE" EFI)
 
-    local _FSTAB=$(make_fstab $_DEVICE)
-    local _PARTUUID=$(uuid_by_name $_DEVICE SYSTEM)
-    local _DEV_SYSTEM=$(part_by_name $_DEVICE SYSTEM)
+    mkdir -p "${_MOUNT}"
+    mount -t auto "${_DEV_SYSTEM}" "${_MOUNT}"
 
-    mkdir -p ${_MOUNT}
+    # Mount EFI if exists
+    if [ -n "$_DEV_EFI" ]; then
+        mkdir -p "${_MOUNT}/boot/efi"
+        mount -t auto "${_DEV_EFI}" "${_MOUNT}/boot/efi"
+    fi
 
-    mount -t auto $(part_by_name "${_DEVICE}" "SYSTEM" ) ${_MOUNT}
-
-    mkdir -p ${_MOUNT}/boot/efi
-    mount -o flush -t auto $(part_by_name "${_DEVICE}" "EFI" ) ${_MOUNT}/boot/efi
-
-    mount --bind /dev ${_MOUNT}/dev
-    mount --bind /dev/pts ${_MOUNT}/dev/pts
-    mount --bind /proc ${_MOUNT}/proc
-    mount --bind /sys ${_MOUNT}/sys
-    mount --bind /run ${_MOUNT}/run
-
-    touch $_MOUNT/forcefsck
+    # Mount API filesystems
+    for dir in dev proc sys run; do
+        mount --bind "/$dir" "${_MOUNT}/$dir"
+    done
 
     # FSTAB
-    # =====
+    echo "Updating /etc/fstab..."
+    make_fstab "$_DEVICE" > "${_MOUNT}/etc/fstab"
 
-    echo "$_FSTAB" > $_MOUNT/etc/fstab
-    # Root partition (/) must be the first line in /etc/fstab for proper boot operation
-    #awk -v puuid="$_PARTUUID" 'NR==FNR && $1 == puuid {print; next} FNR != NR' $_MOUNT/etc/fstab.tmp $_MOUNT/etc/fstab.tmp > /$_MOUNT/etc/fstab
+    # Install GRUB (BIOS)
+    echo "Installing GRUB (BIOS)..." | tee -a /tmp/mcs-clone.log
+    # Create a device map for GRUB to be sure it points to the right NBD device
+    echo "(hd0) ${_DEVICE}" > "${_MOUNT}/boot/grub/device.map"
+    
+    # Try installing from inside chroot first, but with more modules
+    chroot "${_MOUNT}" grub-install --target=i386-pc --force --modules="part_gpt biosdisk" "${_DEVICE}" 2>&1 | tee -a /tmp/mcs-clone.log
+    
+    # Fallback: install from outside chroot if possible (using host paths)
+    if [ $? -ne 0 ]; then
+        echo "  [WARNING] grub-install inside chroot failed, trying from host..." | tee -a /tmp/mcs-clone.log
+        grub-install --target=i386-pc --boot-directory="${_MOUNT}/boot" --force "${_DEVICE}" 2>&1 | tee -a /tmp/mcs-clone.log
+    fi
+    
+    # Install GRUB (UEFI) if EFI partition exists
+    if [ -n "$_DEV_EFI" ]; then
+        echo "Installing GRUB (UEFI)..." | tee -a /tmp/mcs-clone.log
+        chroot "${_MOUNT}" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=grub --force 2>&1 | tee -a /tmp/mcs-clone.log
+        # Fallback for some BIOS
+        mkdir -p "${_MOUNT}/boot/efi/EFI/BOOT"
+        cp "${_MOUNT}/boot/efi/EFI/grub/grubx64.efi" "${_MOUNT}/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>/dev/null
+    fi
 
+    # Update GRUB config (Alpine style)
+    echo "Updating GRUB configuration..." | tee -a /tmp/mcs-clone.log
+    chroot "${_MOUNT}" grub-mkconfig -o /boot/grub/grub.cfg 2>&1 | tee -a /tmp/mcs-clone.log
 
-    # Para no escanear todos los discos se deshabilita os-prober
-    chroot ${_MOUNT} mv /etc/grub.d/30_os-prober /tmp/
-    chroot ${_MOUNT} touch /etc/grub.d/30_os-prober
+    # Fix root= references: replace /dev/sdXN with PARTUUID=xxx
+    # grub-mkconfig hardcodes the device path seen during chroot (e.g. /dev/sdb4)
+    # but when the disk boots as the primary drive it becomes /dev/sda4
+    local _PARTUUID_SYSTEM=$(blkid -o value -s PARTUUID "${_DEV_SYSTEM}")
+    if [ -n "$_PARTUUID_SYSTEM" ]; then
+        echo "Fixing root= in grub.cfg: ${_DEV_SYSTEM} -> PARTUUID=${_PARTUUID_SYSTEM}" | tee -a /tmp/mcs-clone.log
+        sed -i "s|root=${_DEV_SYSTEM}|root=PARTUUID=${_PARTUUID_SYSTEM}|g" "${_MOUNT}/boot/grub/grub.cfg"
+        sed -i "s|root=UUID=[^ ]*|root=PARTUUID=${_PARTUUID_SYSTEM}|g" "${_MOUNT}/boot/grub/grub.cfg"
+    fi
 
-    # EFI
-    #chroot ${_MOUNT} /usr/sbin/grub-install ${_DEVICE} --target=x86_64-efi --efi-directory=/boot/efi
-    #chroot ${_MOUNT} /usr/sbin/update-grub
-    mount -t efivarfs efivarfs ${_MOUNT}/sys/firmware/efi/efivars
-    chroot ${_MOUNT} /usr/sbin/grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=grub
-    chroot ${_MOUNT} /usr/sbin/update-grub
-    chroot ${_MOUNT} cp /boot/efi/EFI/grub/grubx64.efi /boot/efi/EFI/grub/BOOTX64.EFI
-    chroot ${_MOUNT} cp -r /boot/efi/EFI/grub /boot/efi/EFI/BOOT # (Virtualbox)
+    echo "Syncing and unmounting..."
+    sync
+    
+    # Clean up mounts
+    for dir in dev proc sys run; do
+        umount -l "${_MOUNT}/$dir" 2>/dev/null
+    done
+    umount "${_MOUNT}/boot/efi" 2>/dev/null
+    umount "${_MOUNT}" 2>/dev/null
+    rmdir "${_MOUNT}"
 
-    # BIOS
-    chroot ${_MOUNT} parted ${_DEVICE} set 2 bios_grub on
-    chroot ${_MOUNT} /usr/sbin/grub-install --target=i386-pc ${_DEVICE}
-
-    # INITRAMFS
-    chroot ${_MOUNT} /usr/sbin/update-initramfs -u
-
-    # Volvemos a dejar os-prober como estaba
-    chroot ${_MOUNT} mv /tmp/30_os-prober /etc/grub.d/
-
-    umount ${_MOUNT}/sys/firmware/efi/efivars
-    umount ${_MOUNT}/run 2&>/dev/null
-    umount ${_MOUNT}/sys 2&>/dev/null
-    umount ${_MOUNT}/proc 2&>/dev/null
-    umount ${_MOUNT}/dev/pts 2&>/dev/null
-    umount ${_MOUNT}/dev 2&>/dev/null
-
-
-    umount ${_MOUNT}/boot/efi 2&>/dev/null
-    umount ${_MOUNT} 2&>/dev/null
-    rmdir ${_MOUNT}
-
-    #set_journal $_DEVICE
-
-    disconnect_HD $_DEVICE
-
+    disconnect_HD "${_DEVICE}"
 }
 
 
