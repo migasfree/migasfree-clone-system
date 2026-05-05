@@ -1,7 +1,7 @@
 #!/bin/bash
 set -o pipefail
 
-source /usr/share/mcs/functions
+. /usr/share/mcs/functions
 
 TAG=$(cat /usr/share/mcs/VERSION)
 MOUNT="/mcsdata"
