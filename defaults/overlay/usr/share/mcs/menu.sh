@@ -115,9 +115,9 @@ main_menu() {
         CHOICE=$(dialog --clear --backtitle "$TITLE" \
                       --title "Main Menu" \
                       --menu "" 15 55 5 \
-                      1 "Clone from Network" \
-                      2 "Clone from USB" \
-                      3 "Images (Manage USB)" \
+                      1 "Network Clone" \
+                      2 "Local Clone" \
+                      3 "Local Images" \
                       4 "Settings" \
                       5 "Poweroff" \
                       3>&1 1>&2 2>&3)
@@ -143,10 +143,14 @@ get_image() {
     rm -f "$TEMPORAL_FILE"
     local INDEX=1
     for file in "$IMAGES_DIR"/*; do
-        if [ -f "$file" ]; then
+        if [ -d "$file" ]; then
+            NAME=$(basename "$file")
+            echo "${INDEX} \"${NAME}\"" >> "$TEMPORAL_FILE"
+            INDEX=$((INDEX + 1))
+        elif [ -f "$file" ]; then
             NAME=$(basename "$file")
             SIZE=$(stat -c %s "$file")
-            echo "${INDEX} \"${NAME} $(numfmt --to=iec $SIZE)\"" >> "$TEMPORAL_FILE"
+            echo "${INDEX} \"${NAME} ($(numfmt --to=iec $SIZE))\"" >> "$TEMPORAL_FILE"
             INDEX=$((INDEX + 1))
         fi
     done
@@ -202,13 +206,16 @@ clone_menu(){
     if [[ -z "$DISK" ]]; then
        return
     fi
-    show_confirm "Local Clone" "Are you sure you want to clone?" "\n\n$IMAGE\n  |\n \|/\n  '\n$DISK?"
+    show_confirm "Local Clone" "Clone?" "\n  $IMAGE\n     ||\n     ||\n     \\/\n  /dev/$DISK"
     if [[ $? -eq 0 ]]; then
 	IMAGE=$(echo "$IMAGE" | awk '{print $1}')
         DISK=$(echo "/dev/$DISK" | awk '{print $1}')
-        #dd if="$IMAGES_DIR/$IMAGE" of="$DISK" bs=4M status=progress
+        START_TIME=$(date +%s)
         clone_HD "$IMAGES_DIR/$IMAGE" $DISK
-        show_msg "Local Clone" "Completed!" "$IMAGE -> $DISK"
+        END_TIME=$(date +%s)
+        ELAPSED=$((END_TIME - START_TIME))
+        DURATION=$(printf '%dm %ds' $((ELAPSED/60)) $((ELAPSED%60)))
+        show_msg "Local Clone" "Completed!" "$IMAGE -> $DISK\n\nTime elapsed: $DURATION"
     fi
 }
 
@@ -218,10 +225,10 @@ network_clone_menu() {
         return
     fi
 
-    URL_PATH="http://$SERVER_URL/pool/images/"
+    URL_PATH="http://$SERVER_URL/pool/mcs/"
     
-    # Fetch remote image list
-    /usr/bin/wget -q -O - "${URL_PATH}" | grep -o 'href="[^"]*"' |  grep ".qcow2" | cut -d '"' -f 2 | nl -w1 -s' ' | sed 's/\(.*\) \(.*\)/\1 "\2"/' > $TEMPORAL_FILE
+    # Fetch remote image list (including directories for Turbo Mode)
+    /usr/bin/wget -q -O - "${URL_PATH}" | grep -o 'href="[^"]*"' | grep -v 'href="\.\.\/"' | grep "/\"" | cut -d '"' -f 2 | sed 's/\/$//' | nl -w1 -s' ' | sed 's/\(.*\) \(.*\)/\1 "\2"/' > $TEMPORAL_FILE
 
     if [ ! -s "$TEMPORAL_FILE" ]; then
         show_msg "Network Clone" "Error" "No images found on the server:\n$URL_PATH"
@@ -238,28 +245,31 @@ network_clone_menu() {
        return
     fi
 
-    # Clean disk name (remove size)
-    DISK=$(echo "$DISK" | awk '{print $1}')
-
     # Check if FILE is already a full URL
     if [[ $FILE == http* ]]; then
         DOWNLOAD_URL="$FILE"
     else
-        DOWNLOAD_URL="$URL_PATH$FILE"
+        DOWNLOAD_URL="$URL_PATH$FILE/"
     fi
 
-    show_confirm "Network Clone" "Start direct streaming?" "\nFROM: $FILE\nTO: /dev/$DISK\n\nWARNING: All data on /dev/$DISK will be lost!"
+    show_confirm "Network Clone" "Clone?" "\n  $FILE\n     ||\n     ||\n     \\/\n  /dev/$DISK"
     if [[ $? -eq 0 ]]; then
+        # Clean disk name (remove size)
+        DISK=$(echo "$DISK" | awk '{print $1}')
         clear
-        echo "[+] Starting direct Network Clone..."
+        echo "[+] Starting Network Clone..."
         echo "[+] Source: $DOWNLOAD_URL"
         echo "[+] Target: /dev/$DISK"
         echo ""
-        # Direct conversion from URL (User-Agent spoofing removed as it's unsupported and no longer needed)
-        qemu-img convert -p --image-opts driver=http,url="$DOWNLOAD_URL" -O raw "/dev/$DISK"
+        START_TIME=$(date +%s)
+        clone_HD "$DOWNLOAD_URL" "/dev/$DISK"
+        RET=$?
+        END_TIME=$(date +%s)
+        ELAPSED=$((END_TIME - START_TIME))
+        DURATION=$(printf '%dm %ds' $((ELAPSED/60)) $((ELAPSED%60)))
         
-        if [ $? -eq 0 ]; then
-            show_msg "Network Clone" "Completed!" "Successfully cloned $FILE to /dev/$DISK"
+        if [ $RET -eq 0 ]; then
+            show_msg "Network Clone" "Completed!" "Successfully cloned $FILE to /dev/$DISK\n\nTime elapsed: $DURATION"
         else
             show_msg "Network Clone" "Error" "The cloning process failed. Check network connection."
         fi
@@ -270,11 +280,18 @@ network_clone_menu() {
 # ======
 
 list_image() {
-    local list=$(ls -lh "$IMAGES_DIR" | awk 'NR>1 {print $9, "("$5")"}')
+    local list=""
+    for file in "$IMAGES_DIR"/*; do
+        if [ -d "$file" ]; then
+            list="${list}$(basename "$file")\n"
+        elif [ -f "$file" ]; then
+            list="${list}$(basename "$file") ($(numfmt --to=iec $(stat -c %s "$file")))\n"
+        fi
+    done
     if [[ -z "$list" ]]; then
-        show_msg "Images" "List" "No images found in $IMAGES_DIR"
+        show_msg "Local Images" "List" "No images found in $IMAGES_DIR"
     else
-        show_msg "Images" "List" "$list"
+        show_msg "Local Images" "List" "$list"
     fi
 }
 
@@ -284,18 +301,19 @@ download_image() {
         return
     fi
 
-    URL_PATH="http://$SERVER_URL/pool/images/"
+    URL_PATH="http://$SERVER_URL/pool/mcs/"
 
     echo "" > $TEMPORAL_FILE
 
-    wget -q -O - "${URL_PATH}" | grep -o 'href="[^"]*"' |  grep ".qcow2" | cut -d '"' -f 2 |nl -w1 -s' ' | sed 's/\(.*\) \(.*\)/\1 "\2"/' > $TEMPORAL_FILE
+    # Fetch remote project list (directories)
+    wget -q -O - "${URL_PATH}" | grep -o 'href="[^"]*"' | grep -v 'href="\.\.\/"' | grep "/\"" | cut -d '"' -f 2 | sed 's/\/$//' | nl -w1 -s' ' | sed 's/\(.*\) \(.*\)/\1 "\2"/' > $TEMPORAL_FILE
 
     if [ ! -s "$TEMPORAL_FILE" ]; then
-        show_msg "Images" "Download" "No .qcow2 images found on the server:\n$URL_PATH\n\nPlease check your Server URL or repository."
+        show_msg "Local Images" "Download" "No projects found on the server:\n$URL_PATH\n\nPlease check your Server URL or repository."
         return
     fi
 
-    FILE=$(show_selection "Images" "Download")
+    FILE=$(show_selection "Local Images" "Download")
     if [[ -z $FILE ]]; then
         return
     fi
@@ -307,42 +325,50 @@ download_image() {
         DOWNLOAD_URL="$URL_PATH$FILE"
     fi
 
-    if [ -f "$IMAGES_DIR/$FILE" ]; then
-        show_msg "Images" "Error" "$FILE exists."
+    if [ -e "$IMAGES_DIR/$FILE" ]; then
+        show_msg "Local Images" "Error" "$FILE exists."
     else
         clear
-        /usr/bin/wget "$DOWNLOAD_URL" -P "$IMAGES_DIR"
-        if [ $? = 0 ]
-        then
-            dialog --msgbox "Download $FILE completed!" 10 50
+        # It's a project directory
+        FILE_DIR="$FILE/"
+        DOWNLOAD_URL="$URL_PATH$FILE_DIR"
+        mkdir -p "$IMAGES_DIR/$FILE_DIR"
+        echo "[+] Downloading project $FILE..."
+        for part in SYSTEM.raw DATA.raw; do
+            echo "[+] Downloading $part..."
+            /usr/bin/wget "$DOWNLOAD_URL$part" -P "$IMAGES_DIR/$FILE_DIR"
+        done
+        if [ $? = 0 ]; then
+            dialog --msgbox "Download project $FILE completed!" 10 50
         else
-            read
-            dialog --msgbox "Download $FILE failed!" 10 50
+            dialog --msgbox "Download project $FILE failed!" 10 50
         fi
     fi
 }
 
 delete_image() {
-    if [ -z "$(ls -A "$IMAGES_DIR")" ]; then
-        show_msg "Images" "Delete" "No images found to delete."
+    local IMAGE=$(get_image "Local Images" "Delete")
+    if [[ -z "$IMAGE" ]]; then
         return
     fi
-    IMAGE=$(get_image "Images" "Delete")
-    if [[ -z $IMAGE ]]; then
-        return
-    fi
-    show_confirm "Images" "Are you sure you want to delete?" "$IMAGE"
-    if [[ $? -eq 0 ]]; then
-	    IMAGE=$(echo $IMAGE|awk '{print $1}')
-        rm -f "$IMAGES_DIR/$IMAGE"
+
+    # Check if the image exists locally
+    if [ -e "$IMAGES_DIR/$IMAGE" ]; then
+        show_confirm "Local Images" "Delete?" "Are you sure you want to delete project $IMAGE?"
+        if [ $? = 0 ]; then
+            # Clean disk name (remove size if present)
+            local IMAGE_NAME=$(echo "$IMAGE" | awk '{print $1}')
+            rm -rf "$IMAGES_DIR/$IMAGE_NAME"
+            show_msg "Local Images" "Delete" "$IMAGE_NAME deleted."
+        fi
     fi
 }
 
 images_menu() {
     while true; do
-        CHOICE=$(dialog --clear --backtitle "${TITLE} > Images" \
-                      --title "Images Menu" \
-                      --menu "" 15 50 2 \
+        CHOICE=$(dialog --clear --backtitle "${TITLE} > Local Images" \
+                      --title "Local Images Menu" \
+                      --menu "" 15 50 3 \
                       1 "List" \
                       2 "Download" \
                       3 "Delete" \
