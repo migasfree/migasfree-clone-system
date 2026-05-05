@@ -68,13 +68,32 @@ else
     qemu-img resize "$TEST_IMG" "$TEST_DISK_SIZE"
 fi
 
-# 3. Build QEMU command
+# 3. Handle Target Disk
+TARGET_DRIVE=""
+if [ -n "$TEST_TARGET_DISK" ]; then
+    TARGET_PATH="${ARTIFACTSDIR}/${TEST_TARGET_DISK}"
+    
+    # Determine format
+    TARGET_FORMAT="raw"
+    [[ "$TEST_TARGET_DISK" == *.qcow2 ]] && TARGET_FORMAT="qcow2"
+
+    if [ ! -f "$TARGET_PATH" ]; then
+        echo "[+] Creating target disk: $TARGET_PATH ($TEST_TARGET_SIZE) as $TARGET_FORMAT..."
+        qemu-img create -f "$TARGET_FORMAT" "$TARGET_PATH" "$TEST_TARGET_SIZE"
+    fi
+    
+    TARGET_DRIVE="-drive file=$TARGET_PATH,format=$TARGET_FORMAT,index=1,media=disk"
+fi
+
+# 4. Build QEMU command
 QEMU_CMD="sudo qemu-system-x86_64 \
     -m $TEST_RAM \
     -enable-kvm \
     -cpu host \
     -net nic,model=virtio -net user \
-    -drive file=$TEST_IMG,format=raw"
+    -drive file=$TEST_IMG,format=raw,index=0,media=disk \
+    $TARGET_DRIVE \
+    -monitor unix:/tmp/qemu-monitor.sock,server,nowait"
 
 if [ "$TEST_UEFI" = "true" ]; then
     if [ -f "$OVMF_PATH" ]; then
@@ -87,8 +106,9 @@ if [ "$TEST_UEFI" = "true" ]; then
     fi
 fi
 
-# 4. Launch QEMU
+# 5. Launch QEMU
 echo "[+] Launching QEMU..."
 echo "    RAM: $TEST_RAM"
 echo "    UEFI: $TEST_UEFI"
+echo "    Target: ${TEST_TARGET_DISK:-none}"
 eval $QEMU_CMD
