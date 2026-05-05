@@ -184,11 +184,6 @@ function disconnect_HD {
 }
 
 
-function ls_parts {
-    local _DEVICE="$1"
-    lsblk -o KNAME,TYPE ${_DEVICE} | grep part | awk '{print "/dev/"$1}'
-}
-
 function disk_by_label() {
     # LABEL of FS
     local _LABEL="$1"
@@ -220,55 +215,6 @@ function part_by_label() {
     else
         echo "/dev/${_KNAME}"
     fi
-}
-
-
-function shrink_HD {
-    _DEVICE="$1"
-    _DEVICE=$(connect_HD ${_DEVICE})
-    IFS=$'\n'
-    for _DEV_PART in $(ls_parts ${_DEVICE})
-    do
-        umount ${_DEV_PART} 2>/dev/null || :
-        shrink_part ${_DEVICE} $(id_by_part $_DEV_PART)
-    done
-    IFS=''
-    disconnect_HD ${_DEVICE}
-}
-
-
-# shrink_part "/dev/loop0" "4"
-function shrink_part {
-    local _DEVICE="$1"
-    local _NUMBER="$2"
-    local _DEV_PART=$(part_by_id $_DEVICE $_NUMBER)
-    local _TYPE=$(blkid -o value -s TYPE ${_DEV_PART})
-    local _BLOCK=${_DEVICE:5} # eliminamos "/dev/"
-
-    case $_TYPE in
-        ext2|ext3|ext4)
-            # Reducimos el FS
-            e2fsck -f -y ${_DEV_PART}
-            partprobe
-            resize2fs -M ${_DEV_PART}   # shrink FS to minimal
-            partprobe
-            # Reducimos la particion
-            # https://serverfault.com/questions/796758/shrink-partition-to-exactly-fit-the-underlying-filesystem-size
-            local BLOCK_SIZE=$(tune2fs -l ${_DEV_PART} | grep "Block size:" |awk -F: '{print $2}')
-            local BLOCK_COUNT=$(tune2fs -l ${_DEV_PART} | grep "Block count:" |awk -F: '{print $2}')
-            local SECTOR_SIZE=$(cat /sys/block/${_BLOCK}/queue/hw_sector_size)
-            local START_SECTOR=$(fdisk -l ${_DEVICE}|grep ${_DEV_PART} |awk '{print $2}')
-            local FS_SIZE=$(($BLOCK_COUNT*$BLOCK_SIZE))
-            local FS_SECTORS=$(($FS_SIZE/$SECTOR_SIZE))
-            local PART_SECTORS=$(( (($FS_SECTORS-1)/2048+1)*2048 ))
-            local END_SECTOR=$(( $START_SECTOR + $PART_SECTORS - 1 ))
-            echo Yes | parted ---pretend-input-tty ${_DEVICE} resizepart $(echo ${_NUMBER}) ${END_SECTOR}s
-            partprobe
-        ;;
-        *)
-            echo "${_DEV_PART} TYPE: ${_TYPE} is not shrinkable"
-        ;;
-    esac
 }
 
 
@@ -443,41 +389,6 @@ function make_file_systems {
     done
     IFS=''
 }
-
-
-function set_journal {
-    local _DEVICE="$1"
-    local _PARTITIONS=$(echo "$_JSON_PARTITIONS"|jq -r '.[] | "\(.number);\(.name);\(.filesystem);"')
-    local _PARTITION
-    local _NUMBER
-    local _NAME
-    local _FILESYSTEM
-    local _DEV_PART
-
-    echo
-    echo "Estableciendo journal"
-    echo "====================="
-
-    IFS=$'\n'
-    for _PARTITION in $_PARTITIONS
-    do
-        _NUMBER=$(echo "$_PARTITION" | awk -F ";" '{print $1}')
-        _NAME=$(echo "$_PARTITION" | awk -F ";" '{print $2}')
-        _FILESYSTEM=$(echo "$_PARTITION" | awk -F ";" '{print $3}')
-        _DEV_PART=$(part_by_id ${_DEVICE} ${_NUMBER})
-
-        case "$_FILESYSTEM" in
-            "ext4")
-                umount ${_DEV_PART} 2&> /dev/null || :
-                tune2fs -O has_journal ${_DEV_PART}
-                ;;
-            *)
-                ;;
-        esac
-    done
-    IFS=''
-}
-
 
 
 function get_megas_device
@@ -762,135 +673,6 @@ function clone_HD {
     disconnect_HD $_SOURCE
 
     rescue $_ORIGIN_TARGET
-
-}
-
-
-
-# set_hostname /dev/sdc PCXXXXX
-function set_hostname {
-    local _DEVICE="$1"
-    local _PC="$2"
-    local _MOUNT="/mnt/rescue"
-
-    _DEVICE=$(connect_HD ${_DEVICE})
-    mkdir -p ${_MOUNT}
-    mount -t auto $(part_by_name "${_DEVICE}" "SYSTEM" ) ${_MOUNT}
-
-    # modificación del /etc/hosts
-    echo "$_PC" > ${_MOUNT}/etc/hostname
-    _FILE=${_MOUNT}/etc/azl-lan/hosts.d/10_localhost
-    /bin/sed -i.bak -e "/^127\.0\.1\.1.*$/d" $_FILE && rm -f ${_FILE}.bak
-    echo "127.0.1.1     ${_PC}.red.zaragoza.es  ${_PC}" >> $_FILE
-
-    umount ${_MOUNT} 2>/dev/null
-    rmdir ${_MOUNT}
-    disconnect_HD $_DEVICE
-}
-
-
-function rescue {
-    local _DEVICE="$1"
-    local _MOUNT="/mnt/rescue"
-
-    echo
-    echo "Configuring Bootloader (Rescue)"
-    echo "=============================="
-
-    _DEVICE=$(connect_HD "${_DEVICE}")
-    local _DEV_SYSTEM=$(part_by_name "$_DEVICE" SYSTEM)
-    local _DEV_EFI=$(part_by_name "$_DEVICE" EFI)
-
-    mkdir -p "${_MOUNT}"
-    mount -t auto "${_DEV_SYSTEM}" "${_MOUNT}"
-
-    # Mount EFI if exists
-    if [ -n "$_DEV_EFI" ]; then
-        mkdir -p "${_MOUNT}/boot/efi"
-        mount -t auto "${_DEV_EFI}" "${_MOUNT}/boot/efi"
-    fi
-
-    # Mount API filesystems
-    for dir in dev proc sys run; do
-        mount --bind "/$dir" "${_MOUNT}/$dir"
-    done
-
-    # FSTAB
-    echo "Updating /etc/fstab..."
-    make_fstab "$_DEVICE" > "${_MOUNT}/etc/fstab"
-
-    # Install GRUB (BIOS)
-    mcs_log "Installing GRUB (BIOS)..."
-    # Create a device map for GRUB to be sure it points to the right NBD device
-    echo "(hd0) ${_DEVICE}" > "${_MOUNT}/boot/grub/device.map"
-    
-    # Try installing from inside chroot first, but with more modules
-    if chroot "${_MOUNT}" which grub-install >/dev/null 2>&1; then
-        chroot "${_MOUNT}" grub-install --target=i386-pc --force --modules="part_gpt biosdisk" "${_DEVICE}" 2>&1 | tee -a /tmp/mcs-clone.log
-    else
-        mcs_log "  [WARNING] grub-install not found inside target, trying from host..."
-        grub-install --target=i386-pc --boot-directory="${_MOUNT}/boot" --force "${_DEVICE}" 2>&1 | tee -a /tmp/mcs-clone.log
-    fi
-    
-    # Install GRUB (UEFI) if EFI partition exists
-    if [ -n "$_DEV_EFI" ]; then
-        mcs_log "Installing GRUB (UEFI)..."
-        if chroot "${_MOUNT}" which grub-install >/dev/null 2>&1; then
-            chroot "${_MOUNT}" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=grub --force 2>&1 | tee -a /tmp/mcs-clone.log
-        else
-            mcs_log "  [WARNING] grub-install (UEFI) not found inside target, skipping chroot install..."
-        fi
-        # Fallback for some BIOS
-        mkdir -p "${_MOUNT}/boot/efi/EFI/BOOT"
-        cp "${_MOUNT}/boot/efi/EFI/grub/grubx64.efi" "${_MOUNT}/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>/dev/null
-    fi
-
-    # Update GRUB config (Alpine style)
-    mcs_log "Updating GRUB configuration..."
-    if chroot "${_MOUNT}" which grub-mkconfig >/dev/null 2>&1; then
-        chroot "${_MOUNT}" grub-mkconfig -o /boot/grub/grub.cfg 2>&1 | tee -a /tmp/mcs-clone.log
-    else
-        mcs_log "  [WARNING] grub-mkconfig not found inside target, skipping configuration update..."
-    fi
-
-    # Fix root= references: replace /dev/sdXN with PARTUUID=xxx
-    # grub-mkconfig hardcodes the device path seen during chroot (e.g. /dev/sdb4)
-    # but when the disk boots as the primary drive it becomes /dev/sda4
-    local _PARTUUID_SYSTEM=$(blkid -o value -s PARTUUID "${_DEV_SYSTEM}")
-    if [ -n "$_PARTUUID_SYSTEM" ]; then
-        echo "Fixing root= in grub.cfg: ${_DEV_SYSTEM} -> PARTUUID=${_PARTUUID_SYSTEM}" | tee -a /tmp/mcs-clone.log
-        sed -i.bak "s|root=${_DEV_SYSTEM}|root=PARTUUID=${_PARTUUID_SYSTEM}|g" "${_MOUNT}/boot/grub/grub.cfg" && rm -f "${_MOUNT}/boot/grub/grub.cfg.bak"
-        sed -i.bak "s|root=UUID=[^ ]*|root=PARTUUID=${_PARTUUID_SYSTEM}|g" "${_MOUNT}/boot/grub/grub.cfg" && rm -f "${_MOUNT}/boot/grub/grub.cfg.bak"
-    fi
-
-    echo "Syncing and unmounting..."
-    sync
-    
-    # Clean up mounts
-    for dir in dev proc sys run; do
-        umount -l "${_MOUNT}/$dir" 2>/dev/null
-    done
-    umount "${_MOUNT}/boot/efi" 2>/dev/null
-    umount "${_MOUNT}" 2>/dev/null
-    rmdir "${_MOUNT}"
-
-    disconnect_HD "${_DEVICE}"
-}
-
-
-function clone_iso {
-    local _FILE_ISO="$1"
-    local _DEVICE="$2"
-
-    echo
-    echo "Clone ${_FILE_ISO} -> ${_DEVICE}"
-    _DEVICE=$(connect_HD ${_DEVICE})
-    #wipefs --all --force ${_DEVICE}
-    dd if=${_FILE_ISO} of=${_DEVICE} bs=4M status=progress
-    #rsyncrsync --info=stats2 -aHAXx /mnt/source/ /mnt/target
-    sync
-    partprobe
-    disconnect_HD ${_DEVICE}
 
 }
 

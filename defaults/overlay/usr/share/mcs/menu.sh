@@ -521,6 +521,4 @@ download_ca() {
 
 download_ca
 
-#check_resolv
-
 main_menu
