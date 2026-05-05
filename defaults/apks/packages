@@ -11,6 +11,7 @@ e2fsprogs-extra
 gptfdisk
 dosfstools
 util-linux
+partx
 lsblk
 kmod
 findmnt
