@@ -89,9 +89,10 @@ nbd-first-free() {
        if [ "$(cat $_DEVICE/size)" = "0" ]
        then
            echo "/dev/$(basename $_DEVICE)"
-           break
+           return 0
        fi
     done
+    return 1
 }
 
 connect_HD() {
@@ -264,7 +265,7 @@ id_by_part() {
     local _DEV_PART="$1"
     local _DEVICE=$(dev_by_part ${_DEV_PART})
     local _PREFIX=$(prefix_part ${_DEVICE})
-    _LEN=$(( ${#_DEVICE} + ${#_PREFIX}))
+    local _LEN=$(( ${#_DEVICE} + ${#_PREFIX}))
     echo "${_DEV_PART:$_LEN}"
 }
 
@@ -314,6 +315,7 @@ make_fstab() {
     local _MOUNT
     local _FILESYSTEM
 
+    local _OLD_IFS="$IFS"
     IFS=$'\n'
     for _PARTITION in $_PARTITIONS
     do
@@ -338,7 +340,7 @@ make_fstab() {
                 ;;
         esac
     done
-    IFS=''
+    IFS="$_OLD_IFS"
 }
 
 
@@ -355,27 +357,9 @@ make_file_systems() {
     echo "Creando sistemas de ficheros"
     echo "============================"
 
+    local _OLD_IFS="$IFS"
     IFS=$'\n'
     for _PARTITION in $_PARTITIONS
-    do
-        _NUMBER=$(echo "$_PARTITION" | awk -F ";" '{print $1}')
-        _NAME=$(echo "$_PARTITION" | awk -F ";" '{print $2}')
-        _FILESYSTEM=$(echo "$_PARTITION" | awk -F ";" '{print $3}')
-        _DEV_PART=$(part_by_id ${_DEVICE} ${_NUMBER})
-
-        case "$_FILESYSTEM" in
-            "ext4")
-                echo "Partición $_NUMBER $_NAME -> ext4"
-                umount ${_DEV_PART} 2&> /dev/null || :
-                LANG=C yes |  mkfs.ext4 -E nodiscard ${_DEV_PART}
-                ;;
-            "swap")
-                echo "Partición $_NUMBER $_NAME -> swap"
-                umount ${_DEV_PART} 2&> /dev/null || :
-                LANG=C yes | mkswap ${_DEV_PART} > /dev/null
-                ;;
-            "vfat")
-                echo "Partición $_NUMBER $_NAME -> fat"
                 umount ${_DEV_PART} 2&> /dev/null || :
                 LANG=C yes | mkfs.fat ${_DEV_PART}> /dev/null
                 ;;
@@ -387,9 +371,8 @@ make_file_systems() {
         sync
 
     done
-    IFS=''
+    IFS="$_OLD_IFS"
 }
-
 
 get_megas_device()
 {
@@ -574,14 +557,8 @@ clone_HD() {
     echo "  [DEBUG] Connected Source: $_SOURCE" >&2
     echo "  [DEBUG] Connected Target: $_TARGET" >&2
 
+    local _OLD_IFS="$IFS"
     IFS=$'\n'
-    for _PARTITION in $_PARTITIONS
-    do
-        _NUMBER=$(echo "$_PARTITION" | awk -F ";" '{print $1}')
-        _NAME=$(echo "$_PARTITION" | awk -F ";" '{print $2}')
-        _SIZE=$(echo "$_PARTITION" | awk -F ";" '{print $3}')
-        
-        mcs_log "  [DEBUG] Checking partition $_NUMBER: $_NAME"
         
         case "$_NAME" in
             "HOME"|"SYSTEM" )
@@ -668,7 +645,7 @@ clone_HD() {
                 ;;
         esac
     done
-    IFS=''
+    IFS="$_OLD_IFS"
     disconnect_HD $_TARGET
     disconnect_HD $_SOURCE
 
