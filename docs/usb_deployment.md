@@ -1,84 +1,59 @@
-# How-to: Deployment to a Physical USB Drive
+# Physical USB Deployment Guide
 
-This guide explains how to transfer the **Migasfree Clone System (MCS)** image from your computer to a physical USB drive.
+This guide explains how to create a bootable **Migasfree Clone System (MCS)** USB drive. The process involves writing the system image (ISO) to a physical drive using a block-level copy.
 
 > [!CAUTION]
 > This process is destructive. All data on the target USB drive will be permanently erased. Double-check your device identifier before proceeding.
 
-## 📋 Prerequisites
+## Prerequisites
 
 - A physical USB drive (at least 4GB, though 16GB+ is recommended for storing images).
-- Root privileges (`sudo`).
+- Root privileges (`sudo`) on the build machine.
 
 ---
 
-## 🚀 Recommended Method: Using the `makeusb` script
+## Recommended Method: Interactive Script
 
-We provide a built-in script that handles the writing process safely, including a confirmation prompt to prevent accidental data loss.
+The safest and easiest way to create your bootable media is by using the provided interactive script. It handles device detection, unmounting, and safety confirmations automatically.
 
-### 1. Identify your USB Drive
+### 1. Launch the Writer
 
-Connect your USB drive and identify its device path (e.g., `/dev/sdb`).
-
-```bash
-lsblk
-```
-
-### 2. Run the deployment script
-
-Pass the device path as an argument to the script:
+Run the following command from the root of the repository:
 
 ```bash
 make usb
 ```
 
-The script will:
+### 2. Follow the Interactive Menu
 
-- Verify that the image exists.
-- Display information about the target device.
-- Ask for your confirmation.
-- Write the bootable image to the USB drive using `dd`.
+The script will scan your system for USB devices and present a numbered list:
 
----
+1. **Detection**: Select the number corresponding to your USB drive.
+2. **Safety Check**: The script verifies that the selected device is a real USB drive and not your system disk.
+3. **Confirmation**: A final warning will be displayed. Type `y` to start the writing process.
 
-## 🛠️ Manual Method (Advanced)
-
-If you prefer to do it manually without the script, you can use the `dd` utility directly. The build process now produces a raw, bootable image with an `.iso` extension.
-
-### Write with `dd`
-
-```bash
-sudo dd if=artifacts/mcs-1.1.iso of=/dev/sdX bs=4M status=progress conv=fsync
-```
-
-### Explanation of parameters
-
-- **`if=...`**: Input file (the bootable `.iso` image).
-- **`of=/dev/sdX`**: Output file (the physical USB device).
-- **`bs=4M`**: Use 4MB block size for faster writing.
-- **`status=progress`**: Shows a progress bar.
-- **`conv=fsync`**: Ensures all data is physically written to the disk before finishing.
+The script uses `dd` with synchronization flags to ensure that the data is physically written to the disk before completion.
 
 ---
 
-## 🚀 Step 4: First Boot
+## First Boot and Persistence
 
-Once the process is complete, you can boot any computer from this USB drive.
+Once the writing process is finished, your USB drive is ready to use.
 
-### Automatic Expansion
+### Automatic Partition Expansion
 
-On the **very first boot**, MCS will detect that it is running for the first time and will automatically:
+On the **very first boot**, MCS automatically expands the data partition (`MCS_DATA`) to occupy **all remaining free space** on the USB drive. This ensures you have the maximum storage available for system images and configuration files.
 
-1. Resize the `MCS_DATA` partition to occupy the remaining space on your USB drive.
-2. Prepare the environment for storing system images.
-
-No manual intervention is required for this expansion.
+No manual intervention is required during this process.
 
 ---
 
-## 🛠️ Alternative: Using Etcher or Ventoy
+## Alternatives: Graphical Tools
 
-If you prefer a graphical tool:
+If you prefer using a graphical interface instead of the terminal, the MCS ISO is compatible with standard flashing utilities:
 
-1. **BalenaEtcher**: You can select the `.iso` file and flash it easily.
-2. **Ventoy**: MCS is a standard Linux image. You can copy the `.iso` to a Ventoy drive, although the standard `dd` method is the most reliable for MCS.
+1. [BalenaEtcher](https://www.balena.io/etcher/): The most recommended cross-platform tool. Simple 3-step interface.
+2. [Ventoy](https://www.ventoy.net/): You can copy the MCS `.iso` file directly to a Ventoy-prepared drive.
+
+> [!NOTE]
+> While Ventoy is convenient, using the **Recommended Method** (direct `dd`) ensures the most reliable performance for the persistent data partition.

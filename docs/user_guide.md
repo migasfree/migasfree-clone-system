@@ -4,28 +4,36 @@ This guide explains how to use the **Migasfree Clone System (MCS)** to deploy sy
 
 ## 1. Getting the ISO
 
-Download the latest `mcs-<version>.iso` from your organization's Migasfree server. It is usually located at:
-`https://<YOUR_SERVER_URL>/pool/mcs/`
+Download the latest `mcs-<version>.iso` from your organization's Migasfree server at: `https://<YOUR_SERVER_URL>/pool/mcs/`
 
 This ISO is already pre-configured to point to your server, so you don't need to change any settings manually.
 
 ## 2. Creating the Bootable USB
 
-You need to write the ISO to a USB drive (minimum 4GB, 32GB+ recommended if you plan to store local images).
+To create the bootable media, we recommend using a simple graphical tool. You will need a USB drive of at least 4GB (32GB+ recommended if you want to store images locally).
 
-### Using Linux (Command Line)
+### Recommended: BalenaEtcher (Windows, macOS, Linux)
 
-Identify your USB device (e.g., `/dev/sdc`) and run:
+This is the easiest and safest method.
 
-```bash
-sudo dd if=mcs-1.1.iso of=/dev/sdX bs=4M status=progress
-```
+1. Download **BalenaEtcher** from [balena.io/etcher](https://www.balena.io/etcher/).
+2. Insert your USB drive into your computer.
+3. Open the program and follow these 3 steps:
+   - **Flash from file**: Select the `mcs-<version>.iso` you downloaded.
+   - **Select target**: Choose your USB drive.
+   - **Flash!**: Wait for the process to finish and verify.
 
-### Using Windows/macOS (GUI)
+### Alternative for Windows: Rufus
 
-- **BalenaEtcher**: Simple and cross-platform. Just select the ISO, the drive, and click "Flash!".
-- **Rufus (Windows only)**: Select the ISO and the drive. **IMPORTANT**: When prompted, choose **"Write in DD Image mode"**.
+1. Download **Rufus** from [rufus.ie](https://rufus.ie/).
+2. Select your USB drive in the **Device** dropdown.
+3. Click **SELECT** and choose the MCS ISO file.
+4. Click **START**.
+   - *Note: If prompted about "ISOHybrid", select **Write in DD Image mode**.*
 
+> [!TIP]
+> **Advanced Users**: You can still use `dd` on Linux:
+> `sudo dd if=mcs-<version>.iso of=/dev/sdX bs=4M status=progress`
 ---
 
 ## 3. Booting MCS
@@ -42,17 +50,17 @@ Once MCS boots, you will see the following options:
 
 ### 🚀 Network Clone
 
-The fastest method if you have a good internet connection (Gigabit network recommended).
+Streams the system project directly from the server to your target disk.
 
-- It streams the system project directly from the server to your hard drive.
-- No local storage on the USB is required.
+- **Speed**: Depends on your network bandwidth and server response. In a **Gigabit network**, this is often faster than using an older USB 2.0 drive.
+- **Advantage**: No local storage on the USB is required; you always deploy the latest version available on the server.
 
 ### 💾 Local Clone
 
-Use this if you are in a location with slow or no internet.
+Clones the project from the USB's internal data partition to the computer.
 
-- It clones the project from the USB's internal data partition to the computer.
-- You must have downloaded the project previously (see below).
+- **Speed**: Depends on the **read speed of your USB drive**. If you use a high-speed **USB 3.0/3.1** drive, this method can be faster than the network.
+- **Advantage**: Works without an active network connection. Ideal for isolated locations or when the server is under heavy load.
 
 ### 📁 Local Images
 
@@ -67,6 +75,7 @@ Management tools for your USB drive:
 - Change the **Server URL** if you need to point to a different repository.
 - Change the **Server IP** (DNS Override): Enter the static IP of your server if DNS resolution is not available in your current network. This will force the system to resolve the domain to that IP.
 - Change the **Keyboard Layout** (default is usually Spanish).
+- **Verify Integrity**: Enable or disable SHA-256 checksum verification after cloning. Disabling this saves time but reduces security/reliability on unstable networks.
 
 ---
 

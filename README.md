@@ -8,8 +8,6 @@
 
 ## 📚 Documentation
 
-The documentation is organized following the [Diátaxis](https://diataxis.fr/) framework:
-
 ### 🛠️ How-To Guides (Goal-oriented)
 
 - [User Guide (End-User)](docs/user_guide.md) - Operating the TUI.
