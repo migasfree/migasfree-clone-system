@@ -15,7 +15,7 @@ We decided to transition to a dynamic partitioning engine that:
 1. Uses **YAML** (`partition.yml`) as the configuration format due to its readability and wide adoption.
 2. Leverages **`yq`** (go implementation) for robust parsing of YAML into JSON for shell processing.
 3. Makes the `partition.yml` file **mandatory** for every project to ensure explicit configuration.
-4. Implements a fallback mechanism for the legacy `DATA.raw` filename when a `HOME` partition is defined.
+4. Implements a consistent naming convention where partition names must match their `.raw` files (e.g., `HOME` -> `HOME.raw`). Legacy fallbacks like `DATA.raw` have been removed.
 
 ## Alternatives Considered
 

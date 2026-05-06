@@ -44,6 +44,6 @@ clone_HD http://your-server.org/pool/mcs/inv.org_lnx-1/ /dev/sda
 
 ## ⚠️ Important Notes
 
-- **RAW Partition Streaming**: The library is optimized for projects containing `SYSTEM.raw` and `DATA.raw`.
+- **RAW Partition Streaming**: The library is optimized for projects containing `SYSTEM.raw` and `HOME.raw`.
 - **Root Required**: Almost all functions require root privileges.
 - **Safety**: The `clone_HD` function is destructive; it will wipe the partition table of the target device.

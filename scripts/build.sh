@@ -41,7 +41,7 @@ then
       mkpart BIOSBOOT 100MiB 101MiB \
       set 2 bios_grub on \
       mkpart ROOT ext4 101MiB 2101MiB \
-      mkpart DATA ext4 2101MiB 2201MiB
+      mkpart MCS_DATA ext4 2101MiB 2201MiB
     parted "${ARTIFACTSDIR}/${IMG}" print
 
     echo "[+] Loop device..."

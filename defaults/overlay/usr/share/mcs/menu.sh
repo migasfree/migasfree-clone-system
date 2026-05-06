@@ -377,12 +377,6 @@ download_image() {
                 local _RAW="${part_name}.raw"
                 echo "[+] Downloading $_RAW..."
                 /usr/bin/wget --timeout=30 "${DOWNLOAD_URL}${_RAW}" -O "$IMAGES_DIR/${FILE_DIR}${_RAW}"
-                
-                # Fallback for HOME -> DATA.raw if HOME.raw failed
-                if [ $? -ne 0 ] && [ "$part_name" == "HOME" ]; then
-                    echo "[+] Falling back to DATA.raw..."
-                    /usr/bin/wget --timeout=30 "${DOWNLOAD_URL}DATA.raw" -O "$IMAGES_DIR/${FILE_DIR}DATA.raw"
-                fi
                 [ $? -ne 0 ] && _RET=1
             fi
         done

@@ -72,7 +72,7 @@ graph TD
     A[Source Code] -->|docker build| B(MCS Docker Image)
     B -->|run| C{build script}
     C -->|dd| D[Sparse Image .img]
-    D -->|parted| E[Partitioning: EFI, BIOS, ROOT, DATA]
+    D -->|parted| E[Partitioning: EFI, BIOS, ROOT, HOME]
     E -->|mkfs| F[Formatted Partitions]
     F -->|chroot| G[Alpine RootFS Installation]
     G -->|rsync| H[Overlay Customization]
@@ -120,7 +120,7 @@ make test
 
 ### Main Menu Options
 
-1. **Network Clone**: Stream a project directory (SYSTEM.raw/DATA.raw) directly from the remote server to the local disk using high-speed RAW partition streaming ("Turbo Clone").
+1. **Network Clone**: Stream a project directory (SYSTEM.raw/HOME.raw) directly from the remote server to the local disk using high-speed RAW partition streaming ("Turbo Clone").
 2. **Local Clone**: Select a project directory already stored in the USB's data partition (`MCS_DATA`) and clone it to the destination disk using `dd`.
 3. **Local Images**: List, download, or delete system projects (directories) to/from the USB's storage.
 4. **Settings**: Configure the server URL and keyboard layout.

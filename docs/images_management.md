@@ -16,7 +16,7 @@ The remote server must serve files over HTTP/HTTPS. By default, MCS looks for pr
 - **Format**: Images must be stored within **project directories**. Each directory contains:
   - `partition.yml` **(mandatory)**: Partition layout definition (see [Partitioning Guide](partitioning.md)).
   - `SYSTEM.raw`: The root filesystem partition image.
-  - `DATA.raw` or `HOME.raw`: The data/user partition image.
+  - `HOME.raw`: The data/user partition image.
   - `checksums.sha256` **(optional)**: SHA-256 checksums for integrity verification (see below).
 
 - **Directory Listing**: The web server must have directory listing enabled (Apache `mod_autoindex` or Nginx `autoindex on`). MCS parses the HTML index to identify available project directories.
@@ -139,7 +139,7 @@ You can change these settings at any time using the **Settings** menu in the MCS
 ## 🔄 Image Lifecycle
 
 1. **Creation**: Create a master system image using your preferred method (e.g., QEMU, VirtualBox).
-2. **Extraction**: Extract the partitions to RAW files (`SYSTEM.raw` and `DATA.raw`).
+2. **Extraction**: Extract the partitions to RAW files (`SYSTEM.raw` and `HOME.raw`).
 3. **Upload**: Create a directory for your project in the server's `/pool/mcs/` path and upload the `.raw` files.
 4. **Discovery**: Boot MCS on a client machine. The new project will automatically appear in the **Local Images > Download** menu.
 5. **Deployment**: Download the project to the USB and use the **Clone** menu to deploy it to the local disk using high-speed streaming.

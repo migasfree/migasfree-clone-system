@@ -43,7 +43,7 @@ The build process is containerized to ensure all dependencies (`parted`, `grub`,
    - Configures the bootloader (GRUB) for both targets.
    - Finalizes by renaming the raw `.img` file to a bootable `.iso` format for broader compatibility with flashing tools.
 
-MCS uses a **block-level streaming approach** using `dd` for maximum performance. This "Turbo Clone" mechanism directly pipes the RAW partition files (`SYSTEM.raw`, `DATA.raw`) from the source to the target partitions.
+MCS uses a **block-level streaming approach** using `dd` for maximum performance. This "Turbo Clone" mechanism directly pipes the RAW partition files (`SYSTEM.raw`, `HOME.raw`) from the source to the target partitions.
 
 - **Speed**: Network deployment reaches the maximum bandwidth available (100MB/s+ on Gigabit networks).
 - **Simplicity**: No complex mounting (NBD) or file-level synchronization is required.
@@ -61,10 +61,10 @@ sequenceDiagram
 
     U->>M: Select "Clone"
     M->>F: make_partitions(Target)
-    F->>T: Create GPT & Partitions (EFI, BIOS, SYSTEM, DATA)
+    F->>T: Create GPT & Partitions (EFI, BIOS, SYSTEM, HOME)
     M->>F: clone_HD(Source, Target)
     S->>T: Stream SYSTEM.raw via dd
-    S->>T: Stream DATA.raw via dd
+    S->>T: Stream HOME.raw via dd
     M->>F: rescue(Target)
     F->>T: Install GRUB & Fix fstab
     M->>U: Show "Success"

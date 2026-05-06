@@ -120,7 +120,6 @@ For each partition defined in the YAML, MCS follows this logic:
 
 1. If the name is **structural** (`BIOS`, `EFI`, `SWAP`), it only creates and formats the partition.
 2. For other names (like `SYSTEM` or `HOME`), it looks for a `<name>.raw` file in the source directory.
-3. If the partition is named `HOME` and `HOME.raw` is missing, it will automatically fall back to `DATA.raw`.
 
 ### Dynamic Sizing
 

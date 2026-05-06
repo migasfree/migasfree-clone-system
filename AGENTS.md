@@ -31,15 +31,15 @@ MCS has transitioned from single `.qcow2` files to **Project Directories**.
 
 - **Server Path**: `http://<SERVER_URL>/pool/mcs/<PROJECT_NAME>/`
 - **Local Path**: `/mcsdata/pool/mcs/<PROJECT_NAME>/`
-- **Required Files per Project**:
+- **Project Directories**:
   - `SYSTEM.raw`: Root filesystem partition.
-  - `DATA.raw`: Data or secondary partition (used as fallback for HOME).
+  - `HOME.raw`: User or secondary partition.
 
 ## 🚀 Technical Workflows
 
 ### Cloning Logic
 
-- **Network Clone**: Streams `SYSTEM.raw` and `DATA.raw` directly from the server to target partitions using `wget -O - | dd`. Known as "Turbo Clone".
+- **Network Clone**: Streams `SYSTEM.raw` and `HOME.raw` directly from the server to target partitions using `wget -O - | dd`. Known as "Turbo Clone".
 - **Local Clone**: Uses `dd` to copy `.raw` files from the USB data partition to target partitions.
 
 ### Partitioning
@@ -49,7 +49,7 @@ MCS expects a specific partition scheme on the target disk (standard Migasfree/V
 - EFI (vfat)
 - BIOS/BOOT (ext4)
 - SYSTEM (ext4)
-- DATA/HOME (ext4)
+- HOME (ext4)
 
 ## 🛠️ Development & Testing
 

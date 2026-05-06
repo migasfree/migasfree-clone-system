@@ -603,14 +603,7 @@ clone_HD() {
                     fi
                     echo "  [DEBUG] Target device: $_DEV_PART_TARGET" | tee -a /tmp/mcs-clone.log
 
-                    # Use partition name directly. Fallback to DATA.raw only if name is HOME and .raw is missing
-                    # TODO: Move this logic to project metadata in partition.yml to avoid hardcoded fallbacks
                     local _REMOTE_URL="${_SOURCE}${_NAME}.raw"
-                    if [ "$_NAME" = "HOME" ]; then
-                        # Only use DATA.raw if we are sure it's the right fallback, but for now 
-                        # let's just use the name from partition.yml which is more predictable.
-                        _REMOTE_URL="${_SOURCE}${_NAME}.raw"
-                    fi
                     mcs_log "  [+] Copying partition $_NAME via wget from ${_REMOTE_URL}..."
                     wget -O - "$_REMOTE_URL" | dd of="${_DEV_PART_TARGET}" bs=1M status=progress 2>&1 | tee -a /tmp/mcs-clone.log
                     sync
@@ -623,9 +616,6 @@ clone_HD() {
                     echo "  [DEBUG] Target device: $_DEV_PART_TARGET" | tee -a /tmp/mcs-clone.log
 
                     local _RAW_FILE="${_SOURCE}/${_NAME}.raw"
-                    if [ "$_NAME" = "HOME" ] && [ ! -f "$_RAW_FILE" ]; then
-                        _RAW_FILE="${_SOURCE}/DATA.raw"
-                    fi
 
                     if [ -f "$_RAW_FILE" ]; then
                         mcs_log "  [+] Copying partition $_NAME from ${_RAW_FILE}..."
