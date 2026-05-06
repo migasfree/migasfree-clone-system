@@ -8,118 +8,67 @@
 
 ## 📚 Documentation
 
-### 🛠️ How-To Guides (Goal-oriented)
+The documentation is organized by target audience to help you find the right information quickly.
 
-- [User Guide (End-User)](docs/user_guide.md) - Operating the TUI.
-- [Testing with QEMU](docs/testing.md) - Virtualized testing environment.
-- [Deployment to USB](docs/usb_deployment.md) - Creating physical bootable media.
+### 🛠️ Operator Guide (End-Users)
 
-### 📖 Technical Reference (Information-oriented)
+- [End-User Guide](docs/user_guide.md): Getting the ISO, creating a bootable USB, booting, and operating the TUI.
 
-- [Disk Partitioning Guide](docs/partitioning.md) - `partition.yml` specification.
-- [Configuration Guide](docs/configuration.md) - Build and runtime settings.
-- [Image Management & Pool](docs/images_management.md) - Managing `.raw` images.
-- [Shell Functions Reference](docs/functions.md) - Internal library documentation.
+### ⚙️ Administrator Guide (SysAdmins)
 
-### 🧠 Explanation (Understanding-oriented)
+- [Server Setup & Image Management](docs/server_setup.md): HTTP pool structure, `partition.yml`, checksums, and the image lifecycle.
+- [Configuration Reference](docs/configuration.md): Build-time (`mcs.conf`) and runtime (`config.yml`) settings.
 
-- [Architecture & Design](docs/architecture.md) - High-level system design.
-- [Architecture Decision Records (ADR)](docs/adr/) - History of key technical decisions.
+### 💻 Developer Reference
+
+- [Architecture & Design](docs/architecture.md): Multi-stage build process and high-level system design.
+- [Shell Functions](docs/functions.md): Internal library documentation.
+- [Testing with QEMU](docs/testing.md): Virtualized testing environment guide.
+- [Architecture Decision Records (ADR)](docs/adr/): History of key technical decisions.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Builders & Admins)
 
-### Prerequisites
+To build, test, and deploy MCS, your host system needs a Linux environment with `make`, `sudo`, `docker`, `parted`, and `qemu` installed.
 
-To build, test, and deploy MCS, your host system needs:
+### 1. Building the Image
 
-- **Operating System**: Linux (Debian/Ubuntu/Alpine recommended).
-- **Core Tools**: `make`, `sudo`, `wget`, `rsync`.
-- **Docker**: Installed and running (for the multi-stage build process).
-- **Disk Utilities**: `parted`, `e2fsprogs` (for partitioning and formatting).
-- **Virtualization (Testing)**: `qemu-system-x86`, `qemu-utils`, and `ovmf` (for UEFI tests).
-- **Root Privileges**: Required for loop device manipulation and partitioning.
-
-### Building the Image
-
-To generate the MCS bootable image, simply run the build command from the root of the repository:
+Generate the MCS bootable ISO from the source code:
 
 ```bash
 make build
 ```
 
-The script will:
-
-1. Build the MCS Docker image.
-2. Create a sparse disk image in the `artifacts/` directory.
-3. Partition and format the image.
-4. Install the MCS system and GRUB (BIOS/UEFI) inside the image.
-5. Finalize the image as a bootable **.iso** file.
-
 The resulting image will be located at `artifacts/mcs-<version>.iso`.
 
----
+### 2. Testing in QEMU
 
-## 🏗️ Architecture
-
-The MCS build process follows a multi-stage approach to ensure a clean and reproducible environment.
-
-```mermaid
-graph TD
-    A[Source Code] -->|docker build| B(MCS Docker Image)
-    B -->|run| C{build script}
-    C -->|dd| D[Sparse Image .img]
-    D -->|parted| E[Partitioning: EFI, BIOS, ROOT, HOME]
-    E -->|mkfs| F[Formatted Partitions]
-    F -->|chroot| G[Alpine RootFS Installation]
-    G -->|rsync| H[Overlay Customization]
-    H -->|grub-install| I[Bootloader: BIOS & UEFI]
-    I -->|finalize| J[Final Image .iso]
-```
-
-### Key Components
-
-| Component | Path | Description |
-| :--- | :--- | :--- |
-| **Build Script** | `/scripts/build.sh` | Orchestrates the image creation process on the host. |
-| **MakeImg** | `/defaults/usr/bin/makeimg` | The main logic running inside the container to build the OS. |
-| **Overlay** | `/defaults/overlay/` | Files and configurations injected into the target system. |
-| **MCS Menu** | `.../usr/share/mcs/menu.sh` | The TUI application that users interact with upon booting. |
-
----
-
-## ⚙️ Configuration
-
-The system behavior can be customized via environment variables in the `build` script or through the `/mcsdata/config.yml` file in the generated image.
-
-### Build Variables
-
-| Variable | Default | Description |
-| :--- | :--- | :--- |
-| `MCS_VERSION` | *(from VERSION)* | Version tag for the image. |
-| `MCS_SIZE_MB` | `3072` | Total size of the generated sparse image. |
-| `SERVER_URL` | `inv.org` | Default image server URL. |
-| `KEYMAP` | `es` | Default keyboard layout. |
-| `TEST_UEFI` | `false` | Enable UEFI mode in QEMU testing. |
-| `TEST_RAM` | `2G` | RAM allocated for the testing VM. |
-
----
-
-## 🖥️ Usage
-
-Once the image is built, you can write it to a USB drive or boot it in a Virtual Machine (QEMU/KVM).
-
-### Booting in QEMU (for testing)
+Safely boot the generated ISO in a virtual machine to verify it works:
 
 ```bash
 make test
 ```
 
-### Main Menu Options
+### 3. Deploying to a Physical USB
 
-1. **Network Clone**: Stream a project directory (SYSTEM.raw/HOME.raw) directly from the remote server to the local disk using high-speed RAW partition streaming ("Turbo Clone").
-2. **Local Clone**: Select a project directory already stored in the USB's data partition (`MCS_DATA`) and clone it to the destination disk using `dd`.
-3. **Local Images**: List, download, or delete system projects (directories) to/from the USB's storage.
-4. **Settings**: Configure the server URL and keyboard layout.
-5. **Poweroff**: Safely shut down the system.
+To write the ISO to a physical USB drive, use our interactive script which provides safety checks and prevents accidental data loss:
+
+```bash
+make usb
+```
+
+#### 📌 First Boot Expansion
+
+On the **very first boot** from a newly created USB, MCS will automatically resize its internal data partition (`MCS_DATA`) to occupy **all remaining free space** on the drive. This prepares the environment for storing local images without any manual intervention.
+
+---
+
+## 🖥️ Usage Summary
+
+Once booted (either in QEMU or via USB), you will access the main TUI menu:
+
+1. **Network Clone**: Stream a project directory directly from the remote server to the local disk using high-speed streaming.
+2. **Local Clone**: Clone a project already stored in the USB's data partition to the destination disk.
+3. **Local Images**: List, download, or delete system projects to/from the USB's storage.
+4. **Settings**: Configure the server URL, IP, keyboard layout, and checksum verification.

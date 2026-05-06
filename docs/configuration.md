@@ -57,14 +57,7 @@ settings:
   verify_checksums: true
 ```
 
-### Remote Project Server
 
-The image server should host **project directories** (containing `SYSTEM.raw` and `HOME.raw`) in a directory reachable at:
-`http://<SERVER_URL>/pool/mcs/`
-
-MCS uses `wget` to list and download these projects. Ensure the server has directory listing enabled or provides an index that `grep` can parse (standard Apache/Nginx autoindex works).
-
-For more details on how to set up your project server, see the [Image Management Guide](images_management.md).
 
 ## ⌨️ Keyboard Layouts
 
