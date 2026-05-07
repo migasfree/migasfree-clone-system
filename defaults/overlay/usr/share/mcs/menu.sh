@@ -165,8 +165,9 @@ get_image() {
     done
     
     if [ "$INDEX" -gt 1 ]; then
-        echo $(show_selection "$submenu" "$title")
+        show_selection "$submenu" "$title"
     else
+        show_msg "$submenu" "Error" "No images found in $IMAGES_DIR"
         echo ""
     fi
 }
@@ -187,7 +188,13 @@ get_disk() {
             fi
         fi
     done <<< "$lsblk_output"
-    echo "$(show_selection "Clone" "Destination disk")"
+
+    if [ "$INDEX" -eq 1 ]; then
+        show_msg "Clone" "Error" "No suitable destination disks found!"
+        echo ""
+    else
+        show_selection "Clone" "Destination disk"
+    fi
 }
 
 
@@ -199,7 +206,13 @@ get_keymap() {
             echo "${INDEX} \"$(basename ${NAME%.map.gz})\"" >> "$TEMPORAL_FILE"
             INDEX=$((INDEX + 1))
     done <<< "$_output"
-    echo "$(show_selection "Settings" "Keymap")"
+
+    if [ "$INDEX" -gt 1 ]; then
+        show_selection "Settings" "Keymap"
+    else
+        show_msg "Settings" "Error" "No keymaps found in /usr/share/keymaps/"
+        echo ""
+    fi
 }
 
 

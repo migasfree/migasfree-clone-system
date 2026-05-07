@@ -234,7 +234,7 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 | ID | Amenaza | Código | Estado |
 | :--- | :--- | :--- | :--- |
 | **D-01** | `wget` sin timeout — clonación puede colgarse indefinidamente | `functions:29`, `menu.sh:353` — sin `--timeout` | ✅ **RESUELTO** (`a6f6093`) — `--timeout=15` metadatos, `--timeout=30` descargas `.raw`, `--timeout=60` rootfs |
-| **D-02** | Loop infinito en `get_disk` si no hay discos | `menu.sh:178-194` — el usuario puede seleccionar una opción inválida | ❌ Pendiente |
+| **D-02** | Loop infinito en `get_disk` si no hay discos | `menu.sh:178-194` — el usuario puede seleccionar una opción inválida | ✅ **RESUELTO** |
 | **D-03** | `nbd-first-free` sin límite — si todos los NBD están ocupados, no retorna nada | `functions:65-75` | ✅ **RESUELTO** (`ed02668`) — retorna `return 1` explícito |
 
 ### E — Elevation of Privilege (Elevación de privilegios)
@@ -391,6 +391,11 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - SH-013: Añadida sección de compatibilidad Shell y herramientas en `architecture.md`
 - Documentada la dependencia de versiones completas de `util-linux`, `coreutils`, `jq`, `yq` y `wget` para evitar limitaciones de BusyBox
 
+### Commit `PENDING` — `fix: handle empty lists in menus to prevent loops (D-02)`
+
+- D-02: Añadido control de errores en `get_disk`, `get_image` y `get_keymap`
+- Muestra un mensaje informativo en lugar de un menú vacío si no hay discos, imágenes o keymaps disponibles
+
 ---
 
 ## 10. Plan de Remediación (Actualizado)
@@ -443,7 +448,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | :--- | :--- | :--- | :--- |
 | Bugs confirmados sin resolver | 7 | **0** ✅ | ≤3 |
 | Violaciones SH resueltas | 0/13 | **12/13** ✅ | 13/13 |
-| STRIDE resueltos | 0/17 | **4/17** (T-01, T-03, D-01, D-03) | 17/17 |
+| STRIDE resueltos | 0/17 | **5/17** (T-01, T-03, D-01, D-02, D-03) | 17/17 |
 | Cobertura de tests (escenarios) | 4/14 (29%) | 4/14 (29%) | >70% |
 | Código muerto | ~218 líneas (~12%) | **0** ✅ eliminado | 0 |
 | Shell scripts con `set -euo pipefail` | 1/4 | **2/4** ✅ | 4/4 |
