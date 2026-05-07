@@ -19,6 +19,7 @@ The `functions` script (located at `/usr/share/mcs/functions` in the booted syst
 | `part_by_label` | `label` | Returns the device path (e.g., `/dev/sda1`) of a partition with a specific filesystem label. |
 | `disk_by_label` | `label` | Returns the parent disk device of a partition with a specific label. |
 | `uuid_by_name` | `device, name` | Returns the PARTUUID of a partition by its name (SYSTEM, EFI, etc.). |
+| `check_home_viability` | `device` | Verifies if the target disk has a compatible partition layout to preserve user data. |
 
 ### Image Manipulation
 
@@ -42,8 +43,33 @@ clone_HD /mcsdata/pool/mcs/inv.org_lnx-1 /dev/sda
 clone_HD http://your-server.org/pool/mcs/inv.org_lnx-1/ /dev/sda
 ```
 
+## 🛡️ Preserve HOME Logic
+
+The "Preserve HOME" feature allows deploying a new system image without wiping the user's data partition.
+
+### Viability Check (`check_home_viability`)
+
+For a developer, a "Compatible Layout" is strictly defined by the metadata of the target disk compared to the current project's `partition.yml`. MCS uses `sfdisk -J` to inspect the target disk without mounting it:
+
+1. **GPT/MBR Name Matching**: The function scans for partitions where the `name` attribute (GPT label) exactly matches `SYSTEM` and `HOME`.
+2. **Strict Node Alignment**: It extracts the partition number from the device node (e.g., `sda3` -> `3`). This number MUST match the `number` defined for that partition in the project's YAML. This ensures that the cloned image's expectations about partition order are met.
+3. **Partition Capacity**: It converts the current partition's sector count to MB and ensures it is greater than or equal to the `size` defined in the project scheme.
+4. **FSTYPE agnostic**: The check does not care about the *content* of the partitions at this stage, only their structural definition.
+
+### Cloning Workflow with Preservation
+
+When `PRESERVE_HOME` is active:
+1. **Bypass Disk Wipe**: The standard `make_HD` (which calls `make_partitions` and `make_file_systems`) is completely skipped.
+2. **Bootloader & Boot Partitions**: 
+   - Even if `HOME` is preserved, the **boot partitions** (EFI or BIOS/BOOT) are handled by the `rescue` function.
+   - If the project includes a `SYSTEM.raw` image that contains the `/boot` directory, it is written to the `SYSTEM` partition.
+3. **Rescue Operation**:
+   - **FSTAB**: A new `/etc/fstab` is generated on-the-fly using `PARTUUID`s to ensure the system boots correctly regardless of device name changes (`sda` vs `nvme`).
+   - **GRUB (BIOS)**: Reinstalled using the `--target=i386-pc` and `--force` flags.
+   - **GRUB (UEFI)**: If an `EFI` partition is detected by label, it is mounted and the EFI binaries are re-synchronized via `grub-install --target=x86_64-efi`.
+
 ## ⚠️ Important Notes
 
 - **RAW Partition Streaming**: The library is optimized for projects containing `SYSTEM.raw` and `HOME.raw`.
 - **Root Required**: Almost all functions require root privileges.
-- **Safety**: The `clone_HD` function is destructive; it will wipe the partition table of the target device.
+- **Safety**: By default, `clone_HD` is destructive; it will wipe the partition table unless `PRESERVE_HOME` is validated and requested.

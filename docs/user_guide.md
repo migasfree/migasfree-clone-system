@@ -62,6 +62,17 @@ Clones the project from the USB's internal data partition to the computer.
 - **Speed**: Depends on the **read speed of your USB drive**. If you use a high-speed **USB 3.0/3.1** drive, this method can be faster than the network.
 - **Advantage**: Works without an active network connection. Ideal for isolated locations or when the server is under heavy load.
 
+### 🛡️ Preserve HOME (Safe Deployment)
+
+When you select a project for cloning, MCS automatically checks if the destination disk already has an MCS-compatible layout.
+
+- **Option**: If a compatible layout is detected, you will be asked if you want to **Preserve existing user data**.
+- **Behavior**:
+  - **Yes**: Only the Operating System (SYSTEM) is updated. Your `/home` partition and personal files remain untouched.
+  - **No**: The entire disk is wiped and re-partitioned. **All data is lost.**
+- **Automatic Protection**: If the system detects that the destination disk is new or has a different partition structure, it will skip this question and perform a clean installation for safety.
+
+
 ### 📁 Local Images
 
 Management tools for your USB drive:

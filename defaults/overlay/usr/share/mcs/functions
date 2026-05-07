@@ -835,11 +835,11 @@ resize_MCS_DATA() {
     local DISK=$(disk_by_label "$LABEL")
 
     umount $PART
-    parted --script --fix  $DISK resizepart 4 100%
+    parted --script --fix $DISK resizepart 4 100% >/dev/null 2>&1
     partprobe $DISK
     sleep 2
-    e2fsck -f -p $PART
-    resize2fs $PART
+    e2fsck -f -p $PART >/dev/null 2>&1
+    resize2fs $PART >/dev/null 2>&1
     mount $PART /mcsdata
 }
 
