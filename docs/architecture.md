@@ -78,3 +78,29 @@ MCS is configured to use DHCP on all interfaces by default. Upon boot, it attemp
 2. Get an IP address via DHCP.
 3. Check connectivity to the `SERVER_URL`.
 4. Update system certificates to allow secure image downloads via HTTPS.
+
+## 🐧 Shell Compatibility & Tooling
+
+MCS runs on **Alpine Linux**, which by default uses **BusyBox** for many common shell utilities. However, to ensure reliability and support advanced features (like JSON parsing and block device management), MCS explicitly includes and requires the full GNU/util-linux versions of key tools.
+
+### Key Tooling Requirements
+
+- **Shell**: `bash` (required for arrays, advanced parameter expansion, and process substitution).
+- **Block Management**: `lsblk`, `partx`, `sfdisk`, and `parted` from the **util-linux** and **parted** packages.
+  - *Why?* BusyBox versions of these tools often lack support for GPT, JSON output (`-J`), or specific flags like `-o` (output columns).
+- **Data Transfer**: `dd` and `pv`.
+  - *Why?* `pv` is used for progress monitoring since BusyBox `dd` does not support `status=progress`.
+- **Parsing**: `jq` and `yq`.
+  - *Why?* Essential for robust parsing of `lsblk -J` and `partition.yml` metadata.
+- **Networking**: `wget` (from the full `wget` package, not BusyBox).
+  - *Why?* Better support for timeouts and HTTPS.
+
+### BusyBox vs. GNU/Full Utilities
+
+When developing or modifying MCS scripts, follow these guidelines:
+
+1. **Prefer Posix**: Use `sh` compatible syntax where possible, but `bash` is the target shell.
+2. **Avoid BusyBox-only hacks**: Assume the presence of full `util-linux` tools.
+3. **Regex**: Avoid `grep -P` (PCRE) as it is not guaranteed to be present; use `grep -E` (Extended Regex).
+4. **Sed**: Use `sed -i` for in-place editing, as the full version installed in MCS supports it consistently.
+5. **Progress**: Always pipe through `pv` for long-running operations instead of relying on `dd` progress flags.

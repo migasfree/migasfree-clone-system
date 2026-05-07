@@ -194,7 +194,7 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 | **SH-010** | `for i in {0..15}` con brace expansion (bashism) | `functions:914` | Usar `for i in $(seq 0 15)` | ✅ **RESUELTO** (`a6f6093`) |
 | **SH-011** | Variables con `_` prefijo pero algunas escapadas | `functions:284` (`_LEN` no local) | Consistencia en naming + `local` | ✅ **RESUELTO** (`ed02668`) |
 | **SH-012** | `lsblk` output parseo frágil (depende del formato columnar) | `functions:48,152,176` | Usar `lsblk -J` (JSON) y `jq` | ✅ **RESUELTO** |
-| **SH-013** | `busybox` vs `GNU` diferencias no documentadas | Todo el código | Asumir que las herramientas pueden ser busybox (Alpine) y probar ambos comportamientos | ❌ Pendiente |
+| **SH-013** | `busybox` vs `GNU` diferencias no documentadas | Todo el código | Documentado en `architecture.md` | ✅ **RESUELTO** |
 
 ---
 
@@ -386,6 +386,11 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - SH-005: `echo` → `printf` para sanitizar `SERVER_IP` y `SERVER_URL` en `hosts`
 - SH-012: Reemplazado parseo columnar de `lsblk` por `lsblk -J` y `jq` en `menu.sh` y `functions`
 
+### Commit `PENDING` — `docs: document shell compatibility and tool requirements`
+
+- SH-013: Añadida sección de compatibilidad Shell y herramientas en `architecture.md`
+- Documentada la dependencia de versiones completas de `util-linux`, `coreutils`, `jq`, `yq` y `wget` para evitar limitaciones de BusyBox
+
 
 ---
 
@@ -429,7 +434,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | **P2** | Refactor `clone_HD` | 3 h |
 | **P2** | Reemplazar parseo HTML por JSON | 3 h |
 | **P3** | SH-012: `lsblk` con `-J` (JSON) | ✅ |
-| **P3** | SH-013: documentar diferencias busybox/GNU | 1 h |
+| **P3** | SH-013: documentar diferencias busybox/GNU | ✅ |
 
 ---
 
@@ -438,7 +443,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | Métrica | Antes | Ahora | Target |
 | :--- | :--- | :--- | :--- |
 | Bugs confirmados sin resolver | 7 | **0** ✅ | ≤3 |
-| Violaciones SH resueltas | 0/13 | **11/13** ✅ | 13/13 |
+| Violaciones SH resueltas | 0/13 | **12/13** ✅ | 13/13 |
 | STRIDE resueltos | 0/17 | **4/17** (T-01, T-03, D-01, D-03) | 17/17 |
 | Cobertura de tests (escenarios) | 4/14 (29%) | 4/14 (29%) | >70% |
 | Código muerto | ~218 líneas (~12%) | **0** ✅ eliminado | 0 |
