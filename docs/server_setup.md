@@ -107,9 +107,7 @@ partitions:
 
 MCS supports **SHA-256 integrity verification** for `.raw` partition files to detect corruption or tampering.
 
-### The `checksums.sha256` file
-
-Every project directory can include an optional `checksums.sha256` file. If present, MCS automatically verifies that the cloned data matches the expected checksum.
+Every project directory should include a `checksums.sha256` file. MCS uses it to verify the integrity of the project definition (`partition.yml`) and the data partitions (`.raw` files).
 
 ```text
 <sha256_hash> <size_in_bytes> <filename>.raw
@@ -118,18 +116,19 @@ Every project directory can include an optional `checksums.sha256` file. If pres
 **Example:**
 
 ```text
-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 21474836480 SYSTEM.raw
-a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a  5368709120 HOME.raw
+f3e5b3c2... 1240 partition.yml
+e3b0c442... 21474836480 SYSTEM.raw
+a7ffc6f8... 5368709120 HOME.raw
 ```
 
 - **`<size_in_bytes>`**: Exact size of the `.raw` file. MCS reads precisely this number of bytes from the target block device to compute the hash.
 
-### Generating checksums
-
-On your server or build machine, generate the file with a loop:
+On your server or build machine, generate the file using this loop:
 
 ```bash
-for f in *.raw; do
+# Generate checksums for the project definition and partitions
+for f in partition.yml *.raw; do
+  [ -f "$f" ] || continue
   echo "$(sha256sum "$f" | awk '{print $1}') $(stat -c %s "$f") $f"
 done > checksums.sha256
 ```

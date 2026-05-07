@@ -412,9 +412,16 @@ download_image() {
         mcs_log "[+] Downloading checksums.sha256..."
         /usr/bin/wget -q --timeout=15 "${DOWNLOAD_URL}checksums.sha256" -O "$IMAGES_DIR/${FILE_DIR}checksums.sha256" 2>/dev/null
 
-        # 2. Determine parts from YAML (MANDATORY)
+        # 2. Verify integrity and determine parts from YAML (MANDATORY)
         local _PARTS
         if [ -s "$IMAGES_DIR/${FILE_DIR}partition.yml" ]; then
+            # Load checksums for verification
+            _CHECKSUMS_FILE="$IMAGES_DIR/${FILE_DIR}checksums.sha256"
+            if ! verify_file_checksum "$IMAGES_DIR/${FILE_DIR}partition.yml" "partition.yml"; then
+                rm -rf "$IMAGES_DIR/$FILE_DIR"
+                show_msg "Network Clone" "Error" "Integrity check failed for partition.yml!"
+                return 1
+            fi
             _PARTS=$(yq -r '.partitions[].name' "$IMAGES_DIR/${FILE_DIR}partition.yml")
         else
             mcs_log "  [ERROR] partition.yml is mandatory for project download!"
@@ -430,7 +437,14 @@ download_image() {
                 local _RAW="${part_name}.raw"
                 mcs_log "[+] Downloading $_RAW..."
                 /usr/bin/wget --timeout=30 "${DOWNLOAD_URL}${_RAW}" -O "$IMAGES_DIR/${FILE_DIR}${_RAW}"
-                [ $? -ne 0 ] && _RET=1
+                if [ $? -eq 0 ]; then
+                    if ! verify_file_checksum "$IMAGES_DIR/${FILE_DIR}${_RAW}" "$_RAW"; then
+                        _RET=1
+                        break
+                    fi
+                else
+                    _RET=1
+                fi
             fi
         done
 

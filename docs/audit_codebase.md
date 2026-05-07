@@ -212,7 +212,7 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 | ID | Amenaza | Código | Estado |
 | :--- | :--- | :--- | :--- |
 | **T-01** | `SYSTEM.raw` descargado sin verificación de integridad | `functions:646` — `wget \| dd` sin checksum | ✅ **RESUELTO** (`7318e2d`) — verificación SHA-256 post-escritura |
-| **T-02** | `partition.yml` descargado sin verificación de firma | `functions:29` — `wget -q -O "$_TEMP" "${_URL}${_FILE}"` acepta cualquier contenido | ❌ Pendiente |
+| **T-02** | `partition.yml` descargado sin verificación de firma | `functions:29` — `wget -q -O "$_TEMP" "${_URL}${_FILE}"` acepta cualquier contenido | ✅ **RESUELTO** |
 | **T-03** | Imágenes locales en `/mcsdata` sin protección de integridad | `menu.sh:391-393` — simple `wget` sin verificación | ✅ **RESUELTO** (`7318e2d`) — verificación SHA-256 también en clon local |
 
 ### R — Repudiation (No repudio)
@@ -396,6 +396,12 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - D-02: Añadido control de errores en `get_disk`, `get_image` y `get_keymap`
 - Muestra un mensaje informativo en lugar de un menú vacío si no hay discos, imágenes o keymaps disponibles
 
+### Commit `PENDING` — `fix: implement integrity verification for partition.yml and project files (T-02)`
+
+- T-02: Implementada verificación de integridad mediante SHA-256 para `partition.yml` y todos los archivos `.raw`
+- Nueva función `verify_file_checksum` en `functions` para validar archivos antes de su procesamiento
+- Mejora la robustez ante descargas incompletas o manipulación de archivos en el servidor
+
 ---
 
 ## 10. Plan de Remediación (Actualizado)
@@ -448,7 +454,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | :--- | :--- | :--- | :--- |
 | Bugs confirmados sin resolver | 7 | **0** ✅ | ≤3 |
 | Violaciones SH resueltas | 0/13 | **12/13** ✅ | 13/13 |
-| STRIDE resueltos | 0/17 | **5/17** (T-01, T-03, D-01, D-02, D-03) | 17/17 |
+| STRIDE resueltos | 0/17 | **6/17** (T-01, T-02, T-03, D-01, D-02, D-03) | 17/17 |
 | Cobertura de tests (escenarios) | 4/14 (29%) | 4/14 (29%) | >70% |
 | Código muerto | ~218 líneas (~12%) | **0** ✅ eliminado | 0 |
 | Shell scripts con `set -euo pipefail` | 1/4 | **2/4** ✅ | 4/4 |
