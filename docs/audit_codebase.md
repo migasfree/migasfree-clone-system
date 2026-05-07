@@ -391,7 +391,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - SH-013: Añadida sección de compatibilidad Shell y herramientas en `architecture.md`
 - Documentada la dependencia de versiones completas de `util-linux`, `coreutils`, `jq`, `yq` y `wget` para evitar limitaciones de BusyBox
 
-### Commit `PENDING` — `fix: handle empty lists in menus to prevent loops (D-02)`
+### Commit `388662f` — `fix: handle empty lists in menus to prevent loops (D-02)`
 
 - D-02: Añadido control de errores en `get_disk`, `get_image` y `get_keymap`
 - Muestra un mensaje informativo en lugar de un menú vacío si no hay discos, imágenes o keymaps disponibles
