@@ -59,8 +59,9 @@ For a developer, a "Compatible Layout" is strictly defined by the metadata of th
 ### Cloning Workflow with Preservation
 
 When `PRESERVE_HOME` is active:
+
 1. **Bypass Disk Wipe**: The standard `make_HD` (which calls `make_partitions` and `make_file_systems`) is completely skipped.
-2. **Bootloader & Boot Partitions**: 
+2. **Bootloader & Boot Partitions**:
    - Even if `HOME` is preserved, the **boot partitions** (EFI or BIOS/BOOT) are handled by the `rescue` function.
    - If the project includes a `SYSTEM.raw` image that contains the `/boot` directory, it is written to the `SYSTEM` partition.
 3. **Rescue Operation**:
