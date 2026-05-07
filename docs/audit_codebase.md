@@ -381,7 +381,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - SH-011: `_LEN` declarada `local`
 - D-03: `nbd-first-free` retorna `1` en fallo
 
-### Commit `PENDING` — `fix: apply SH-005 and SH-012 (robustness fixes)`
+### Commit `578f97d` — `fix: apply SH-005 and SH-012 (robustness fixes)`
 
 - SH-005: `echo` → `printf` para sanitizar `SERVER_IP` y `SERVER_URL` en `hosts`
 - SH-012: Reemplazado parseo columnar de `lsblk` por `lsblk -J` y `jq` en `menu.sh` y `functions`
