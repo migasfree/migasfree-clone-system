@@ -391,7 +391,6 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - SH-013: Añadida sección de compatibilidad Shell y herramientas en `architecture.md`
 - Documentada la dependencia de versiones completas de `util-linux`, `coreutils`, `jq`, `yq` y `wget` para evitar limitaciones de BusyBox
 
-
 ---
 
 ## 10. Plan de Remediación (Actualizado)
