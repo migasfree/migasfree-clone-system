@@ -271,14 +271,8 @@ disconnect_HD() {
 disk_by_label() {
     # LABEL of FS
     local _LABEL="$1"
-    local _KNAME=$( \
-        lsblk -o PKNAME,TYPE,LABEL | \
-        awk '$2 == "part" {print $0}' | \
-        grep "$_LABEL" | \
-        awk '{print $1}'
-        )
-    if [ -z $_KNAME ]
-    then
+    local _KNAME=$(lsblk -J -o PKNAME,TYPE,LABEL 2>/dev/null | jq -r --arg l "$_LABEL" '.. | objects | select(.type == "part" and .label == $l) | .pkname' | head -n 1)
+    if [ -z "$_KNAME" ] || [ "$_KNAME" = "null" ]; then
         return 1
     else
         echo "/dev/${_KNAME}"
@@ -287,14 +281,8 @@ disk_by_label() {
 
 part_by_label() {
     local _LABEL="$1"
-    local _KNAME=$( \
-        lsblk -o KNAME,TYPE,LABEL | \
-        awk '$2 == "part" {print $0}' | \
-        grep "$_LABEL" | \
-        awk '{print $1}'
-        )
-    if [ -z $_KNAME ]
-    then
+    local _KNAME=$(lsblk -J -o KNAME,TYPE,LABEL 2>/dev/null | jq -r --arg l "$_LABEL" '.. | objects | select(.type == "part" and .label == $l) | .kname' | head -n 1)
+    if [ -z "$_KNAME" ] || [ "$_KNAME" = "null" ]; then
         return 1
     else
         echo "/dev/${_KNAME}"
@@ -356,7 +344,7 @@ id_by_part() {
 # dev_by_part /dev/nbd0p4   -> /dev/nbd0
 dev_by_part() {
     local _DEV_PART="$1"
-    local _DEVICE="/dev/$(lsblk -o KNAME,TYPE -s ${_DEV_PART}|grep disk|awk '{print $1}')"
+    local _DEVICE="/dev/$(lsblk -J -o KNAME,TYPE -s ${_DEV_PART} 2>/dev/null | jq -r '.. | objects | select(.type == "disk") | .kname' | head -n 1)"
     echo "${_DEVICE}"
 }
 
@@ -379,7 +367,7 @@ part_by_label_on_device() {
     local _LABEL="$2"
     # Use lsblk to find partitions belonging to _DEVICE with a specific LABEL
     # Redirect errors to stderr to avoid capturing them in variables
-    lsblk -lnp -o NAME,LABEL "${_DEVICE}" 2>/dev/null | grep -w "${_LABEL}" | awk '{print $1}' | head -n 1
+    lsblk -J -p -o NAME,LABEL,TYPE "${_DEVICE}" 2>/dev/null | jq -r --arg l "$_LABEL" '.. | objects | select(.type == "part" and .label == $l) | .name' | head -n 1
 }
 
 # part_label /dev/sda5  -> HOME

@@ -50,14 +50,8 @@ info_msg() {
 
 find_disk_by_label() {
     local _LABEL="$1"
-    _KNAME=$( \
-        lsblk -o KNAME,TYPE,LABEL | \
-        awk '$2 == "disk" {print $0}' | \
-        grep "$_LABEL" | \
-        awk '{print $1}'
-        )
-    if [ -z $_KNAME ]
-    then
+    _KNAME=$(lsblk -J -o KNAME,TYPE,LABEL 2>/dev/null | jq -r --arg l "$_LABEL" '.. | objects | select(.type == "disk" and .label == $l) | .kname' | head -n 1)
+    if [ -z "$_KNAME" ] || [ "$_KNAME" = "null" ]; then
         return 1
     else
         echo "/dev/${_KNAME}"
@@ -66,14 +60,8 @@ find_disk_by_label() {
 
 find_partition_by_label() {
     local _LABEL="$1"
-    _KNAME=$( \
-        lsblk -o KNAME,TYPE,LABEL | \
-        awk '$2 == "part" {print $0}' | \
-        grep "$_LABEL" | \
-        awk '{print $1}'
-        )
-    if [ -z $_KNAME ]
-    then
+    _KNAME=$(lsblk -J -o KNAME,TYPE,LABEL 2>/dev/null | jq -r --arg l "$_LABEL" '.. | objects | select(.type == "part" and .label == $l) | .kname' | head -n 1)
+    if [ -z "$_KNAME" ] || [ "$_KNAME" = "null" ]; then
         return 1
     else
         echo "/dev/${_KNAME}"
@@ -95,7 +83,7 @@ update_hosts() {
     sed -i "/ ${SERVER_URL}$/d" /etc/hosts
     # Add new entry if IP is set
     if [[ -n "$SERVER_IP" && -n "$SERVER_URL" ]]; then
-        echo "${SERVER_IP} ${SERVER_URL}" >> /etc/hosts
+        printf '%s %s\n' "${SERVER_IP}" "${SERVER_URL}" >> /etc/hosts
     fi
 }
 
@@ -187,11 +175,12 @@ get_disk() {
     rm -f "$TEMPORAL_FILE"
     local INDEX=1
     local MCS_DISK=$(disk_by_label "MCS_ROOT")
-    lsblk_output=$(lsblk -nd --output NAME,SIZE,TYPE)
-    while IFS=' ' read -r NAME SIZE TYPE; do
-        if [ "$TYPE" = "disk" ]; then
-            # Excluding floppy, mcs usb, or disk size=0B
+    local lsblk_json=$(lsblk -J -nd --output NAME,SIZE,TYPE 2>/dev/null)
+    local lsblk_output=$(echo "$lsblk_json" | jq -r '.. | objects | select(.type == "disk") | "\(.name)|\(.size)"' 2>/dev/null)
 
+    while IFS='|' read -r NAME SIZE; do
+        if [ -n "$NAME" ]; then
+            # Excluding floppy, mcs usb, or disk size=0B
             if ! [[ "${NAME}" = "fd0" || "/dev/${NAME}" = "${MCS_DISK}" || "${SIZE}" = "0B" ]]; then
                 echo "${INDEX} \"${NAME} ${SIZE}\"" >> "$TEMPORAL_FILE"
                 INDEX=$((INDEX + 1))

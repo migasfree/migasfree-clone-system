@@ -2,7 +2,7 @@
 
 **Rol revisor**: Technical Lead & Architect
 **Fecha**: 2026-05-05
-**Última actualización**: 2026-05-05
+**Última actualización**: 2026-05-07
 **Alcance**: Auditoría estática completa del código fuente (1860 líneas en 7 archivos principales).
 **Marco**: STRIDE (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation of Privilege) + ADR.
 
@@ -187,13 +187,13 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 | **SH-002** | `IFS=$'\n'` no restaurado tras error | `functions:375,424` | Usar subshell o `trap` para restaurar IFS | ✅ **RESUELTO** (`ed02668`) |
 | **SH-003** | `function` keyword innecesario (no POSIX) | `functions:10,16,65,77,...` | Usar `funcname() { }` | ✅ **RESUELTO** (`ae30425`) |
 | **SH-004** | Variables no locales sin `local` | `functions:158,172` (`_KNAME`) | Declarar con `local` | ✅ **RESUELTO** (`ed02668`) |
-| **SH-005** | `echo` con datos de usuario sin sanitizar | `menu.sh:90` (`echo "${SERVER_IP} ${SERVER_URL}"`) | Usar `printf` | ❌ Pendiente |
+| **SH-005** | `echo` con datos de usuario sin sanitizar | `menu.sh:90` (`echo "${SERVER_IP} ${SERVER_URL}"`) | Usar `printf` | ✅ **RESUELTO** |
 | **SH-006** | `cp`, `rm`, `mv` sin `--` para prevenir flag injection | `functions:32,40,48` | Usar `cp -- "$src" "$dst"` | ✅ **RESUELTO** (`ae30425`) |
 | **SH-008** | `source` en lugar de `.` (no POSIX) | `menu.sh:3`, `build.sh:10` | Usar `.` | ✅ **RESUELTO** (`ae30425`) |
 | **SH-009** | Uso de `! [ $? = 0 ]` en lugar de `[ $? -ne 0 ]` | `functions:59` | Simplificar | ✅ **RESUELTO** (`ae30425`) |
 | **SH-010** | `for i in {0..15}` con brace expansion (bashism) | `functions:914` | Usar `for i in $(seq 0 15)` | ✅ **RESUELTO** (`a6f6093`) |
 | **SH-011** | Variables con `_` prefijo pero algunas escapadas | `functions:284` (`_LEN` no local) | Consistencia en naming + `local` | ✅ **RESUELTO** (`ed02668`) |
-| **SH-012** | `lsblk` output parseo frágil (depende del formato columnar) | `functions:48,152,176` | Usar `lsblk -P` (paired output) o `-J` (JSON) | ❌ Pendiente |
+| **SH-012** | `lsblk` output parseo frágil (depende del formato columnar) | `functions:48,152,176` | Usar `lsblk -J` (JSON) y `jq` | ✅ **RESUELTO** |
 | **SH-013** | `busybox` vs `GNU` diferencias no documentadas | Todo el código | Asumir que las herramientas pueden ser busybox (Alpine) y probar ambos comportamientos | ❌ Pendiente |
 
 ---
@@ -381,6 +381,12 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - SH-011: `_LEN` declarada `local`
 - D-03: `nbd-first-free` retorna `1` en fallo
 
+### Commit `PENDING` — `fix: apply SH-005 and SH-012 (robustness fixes)`
+
+- SH-005: `echo` → `printf` para sanitizar `SERVER_IP` y `SERVER_URL` en `hosts`
+- SH-012: Reemplazado parseo columnar de `lsblk` por `lsblk -J` y `jq` en `menu.sh` y `functions`
+
+
 ---
 
 ## 10. Plan de Remediación (Actualizado)
@@ -418,11 +424,11 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 
 | Prioridad | Acción | Esfuerzo |
 | :--- | :--- | :--- |
-| **P2** | SH-005: `printf` en lugar de `echo` | 10 min |
+| **P2** | SH-005: `printf` en lugar de `echo` | ✅ |
 | **P2** | Tests unitarios (bats-core) | 5 h |
 | **P2** | Refactor `clone_HD` | 3 h |
 | **P2** | Reemplazar parseo HTML por JSON | 3 h |
-| **P3** | SH-012: `lsblk` con `-J` (JSON) | 2 h |
+| **P3** | SH-012: `lsblk` con `-J` (JSON) | ✅ |
 | **P3** | SH-013: documentar diferencias busybox/GNU | 1 h |
 
 ---
@@ -432,7 +438,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | Métrica | Antes | Ahora | Target |
 | :--- | :--- | :--- | :--- |
 | Bugs confirmados sin resolver | 7 | **0** ✅ | ≤3 |
-| Violaciones SH resueltas | 0/13 | **9/13** ✅ | 13/13 |
+| Violaciones SH resueltas | 0/13 | **11/13** ✅ | 13/13 |
 | STRIDE resueltos | 0/17 | **4/17** (T-01, T-03, D-01, D-03) | 17/17 |
 | Cobertura de tests (escenarios) | 4/14 (29%) | 4/14 (29%) | >70% |
 | Código muerto | ~218 líneas (~12%) | **0** ✅ eliminado | 0 |
