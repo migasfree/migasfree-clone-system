@@ -26,7 +26,12 @@ show_confirm() {
     local backtitle="$1"
     local title="$2"
     local prompt="$3"
-    dialog --backtitle "$TITLE > $backtitle" --title "$title" --defaultno --yesno "$prompt" 12 50
+    local default="$4"
+    if [ "$default" = "yes" ]; then
+        dialog --backtitle "$TITLE > $backtitle" --title "$title" --yesno "$prompt" 12 50
+    else
+        dialog --backtitle "$TITLE > $backtitle" --title "$title" --defaultno --yesno "$prompt" 12 50
+    fi
 }
 
 show_msg() {
@@ -229,13 +234,17 @@ clone_menu(){
 
     load_partition_scheme "$IMAGES_DIR/$_IMAGE_NAME"
     if check_home_viability "/dev/$_DISK_DEV"; then
-        show_confirm "Local Clone" "Preserve HOME?" "The HOME partition structure is compatible.\nDo you want to preserve existing user data?"
+        show_confirm "Local Clone" "Preserve HOME?" "Do you want to preserve existing user data?" yes
         if [ $? -eq 0 ]; then
             _PRESERVE_HOME="true"
         fi
     fi
 
-    show_confirm "Local Clone" "Clone?" "\n  $IMAGE\n     ||\n     ||\n     \\/\n  /dev/$DISK"
+    local _CLONE_PROMPT="\n  $IMAGE\n     ||\n     ||\n     \\/\n  /dev/$DISK"
+    if [ "$_PRESERVE_HOME" = "false" ]; then
+        _CLONE_PROMPT="$_CLONE_PROMPT\n\nWARNING: All user data will be destroyed!"
+    fi
+    show_confirm "Local Clone" "Clone?" "$_CLONE_PROMPT"
     if [[ $? -eq 0 ]]; then
 	IMAGE=$(echo "$IMAGE" | awk '{print $1}')
         DISK=$(echo "/dev/$DISK" | awk '{print $1}')
@@ -286,13 +295,17 @@ network_clone_menu() {
 
     load_partition_scheme "$DOWNLOAD_URL"
     if check_home_viability "/dev/$_DISK_DEV"; then
-        show_confirm "Network Clone" "Preserve HOME?" "The HOME partition structure is compatible.\nDo you want to preserve existing user data?"
+        show_confirm "Network Clone" "Preserve HOME?" "Do you want to preserve existing user data?" yes
         if [ $? -eq 0 ]; then
             _PRESERVE_HOME="true"
         fi
     fi
 
-    show_confirm "Network Clone" "Clone?" "\n  $FILE\n     ||\n     ||\n     \\/\n  /dev/$DISK"
+    local _CLONE_PROMPT="\n  $FILE\n     ||\n     ||\n     \\/\n  /dev/$DISK"
+    if [ "$_PRESERVE_HOME" = "false" ]; then
+        _CLONE_PROMPT="$_CLONE_PROMPT\n\nWARNING: All user data will be destroyed!"
+    fi
+    show_confirm "Network Clone" "Clone?" "$_CLONE_PROMPT"
     if [[ $? -eq 0 ]]; then
         # Clean disk name (remove size)
         DISK=$(echo "$DISK" | awk '{print $1}')
