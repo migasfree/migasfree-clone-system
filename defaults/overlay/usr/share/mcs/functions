@@ -628,6 +628,7 @@ clone_HD() {
     local _TARGET="$2"
     local _PRESERVE_HOME="${3:-false}"
     local _ORIGIN_TARGET=${_TARGET}
+    local _RET=0
 
     # Load partition scheme if partition.yml exists in source
     load_partition_scheme "$_SOURCE" || return 1
@@ -697,9 +698,12 @@ clone_HD() {
 
                     local _REMOTE_URL="${_SOURCE}${_NAME}.raw"
                     mcs_log "  [+] Copying partition $_NAME via wget from ${_REMOTE_URL}..."
-                    wget -q -O - "$_REMOTE_URL" 2>>"$MCS_LOG_FILE" | dd of="${_DEV_PART_TARGET}" bs=1M 2>&1 | tee -a "$MCS_LOG_FILE"
+                    # Use pv for progress since BusyBox dd doesn't support status=progress
+                    # Swap wget's stderr to stdout so we can tee it to the screen and log, while sending the real data to pv
+                    { wget -nv -O - "$_REMOTE_URL" 2>&1 1>&3 | tee /dev/stderr >> "$MCS_LOG_FILE"; } 3>&1 | pv -f | dd of="${_DEV_PART_TARGET}" bs=1M 2>>"$MCS_LOG_FILE"
+                    if [ $? -ne 0 ]; then _RET=1; fi
                     sync
-                    verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || mcs_log "  [WARNING] Integrity check failed for $_NAME"
+                    verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || { mcs_log "  [WARNING] Integrity check failed for $_NAME"; _RET=1; }
                 elif [ -d "$_SOURCE" ]; then
                     _DEV_PART_TARGET=$(part_by_label_on_device "$_TARGET" "$_NAME")
                     if [ -z "$_DEV_PART_TARGET" ]; then
@@ -711,9 +715,11 @@ clone_HD() {
 
                     if [ -f "$_RAW_FILE" ]; then
                         mcs_log "  [+] Copying partition $_NAME from ${_RAW_FILE}..."
-                        dd if="$_RAW_FILE" of="${_DEV_PART_TARGET}" bs=1M 2>&1 | tee -a $MCS_LOG_FILE
+                        # Use pv for progress since BusyBox dd doesn't support status=progress
+                        pv -f "$_RAW_FILE" | dd of="${_DEV_PART_TARGET}" bs=1M 2>>"$MCS_LOG_FILE"
+                        if [ $? -ne 0 ]; then _RET=1; fi
                         sync
-                        verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || mcs_log "  [WARNING] Integrity check failed for $_NAME"
+                        verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || { mcs_log "  [WARNING] Integrity check failed for $_NAME"; _RET=1; }
                     else
                         mcs_log "  [ERROR] Partition image not found: $_RAW_FILE"
                         _RET=1
@@ -731,8 +737,13 @@ clone_HD() {
     disconnect_HD $_TARGET
     disconnect_HD $_SOURCE
 
-    rescue $_ORIGIN_TARGET
+    if [ $_RET -ne 0 ]; then
+        mcs_log "  [ERROR] Cloning failed. Skipping bootloader configuration."
+        return $_RET
+    fi
 
+    rescue $_ORIGIN_TARGET
+    return $?
 }
 
 
@@ -816,13 +827,20 @@ resize_MCS_DATA() {
     local PART=$(part_by_label "$LABEL")
     local DISK=$(disk_by_label "$LABEL")
 
-    umount $PART
+    # Silence kernel messages to avoid "unmounting" noise on screen
+    local _OLD_DMESG=$(cat /proc/sys/kernel/printk)
+    echo "1 4 1 7" > /proc/sys/kernel/printk
+
+    umount $PART 2>/dev/null || :
     parted --script --fix $DISK resizepart 4 100% >> "$MCS_LOG_FILE" 2>&1
     partprobe $DISK
     sleep 2
     e2fsck -f -p $PART >> "$MCS_LOG_FILE" 2>&1
     resize2fs $PART >> "$MCS_LOG_FILE" 2>&1
     mount $PART /mcsdata
+
+    # Restore dmesg level
+    echo "$_OLD_DMESG" > /proc/sys/kernel/printk
 }
 
 # void free_nbd(void)

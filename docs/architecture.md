@@ -29,7 +29,7 @@ The `functions` library defines a default layout for target systems (clones):
 
 ## 🛠️ Build Workflow
 
-The build process is containerized to ensure all dependencies (`parted`, `grub`, `rsync`) are consistent.
+The build process is containerized to ensure all dependencies (`parted`, `grub`) are consistent.
 
 1. **Host Orchestration (`/scripts/build.sh`)**:
    - Prepares a sparse file.

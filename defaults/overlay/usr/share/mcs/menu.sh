@@ -258,7 +258,11 @@ clone_menu(){
         if [ $RET -eq 0 ]; then
             show_msg "Local Clone" "Completed!" "$IMAGE -> $DISK\n\nTime elapsed: $DURATION"
         else
-            show_msg "Local Clone" "Error" "The cloning process failed.\n\nSee /var/log/mcs-clone.log for details."
+            show_confirm "Local Clone" "Error" "The cloning process failed.\n\nWould you like to view the log now?" "yes"
+            if [ $? -eq 0 ]; then
+                clear
+                less "$MCS_LOG_FILE"
+            fi
         fi
     fi
 }
@@ -330,7 +334,11 @@ network_clone_menu() {
         if [ $RET -eq 0 ]; then
             show_msg "Network Clone" "Completed!" "Successfully cloned $FILE to /dev/$DISK\n\nTime elapsed: $DURATION"
         else
-            show_msg "Network Clone" "Error" "The cloning process failed.\n\nSee /var/log/mcs-clone.log for details."
+            show_confirm "Network Clone" "Error" "The cloning process failed.\n\nWould you like to view the log now?" "yes"
+            if [ $? -eq 0 ]; then
+                clear
+                less "$MCS_LOG_FILE"
+            fi
         fi
     fi
 }

@@ -104,7 +104,7 @@ Flujo original en `clone_HD` para ruta HTTP:
 
 **Severidad**: Media
 
-**Fix aplicado**: Movido el montaje de `/mnt/source` dentro de la rama `elif [ -d "$_SOURCE" ]`, donde realmente se usa (solo rsync fallback). La ruta HTTP ya no monta nada.
+**Fix aplicado**: Movido el montaje de `/mnt/source` dentro de la rama `elif [ -d "$_SOURCE" ]`, donde realmente se usa. La ruta HTTP ya no monta nada.
 
 ---
 
@@ -169,9 +169,10 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 #### 🔴 DATA-001 — `dd` sin chequeo de integridad post-escritura ✅ **RESUELTO** (`7318e2d`)
 
 **Cambios aplicados**:
+
 - Nueva función `verify_partition_checksum` en `functions`
 - `load_partition_scheme` descarga/lee `checksums.sha256` junto a `partition.yml`
-- Verificación SHA-256 tras cada escritura (HTTP Turbo Clone, local dd, rsync)
+- Verificación SHA-256 tras cada escritura (HTTP Turbo Clone, local dd)
 - Formato `checksums.sha256`: `<sha256> <bytes> <nombre>.raw`
 - TUI toggle en Settings > Verify integrity
 - Opcional por retrocompatibilidad — si falta el archivo, avisa y continúa
@@ -333,6 +334,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 ## 9. Log de Avance
 
 ### Commit `b8ef0c2` — `fix: resolve 7 bugs identified in codebase audit`
+
 - BUG-001: `2&>/dev/null` → `2>/dev/null` (4 ocurrencias)
 - BUG-002: montaje huérfano de `/mnt/source` en ruta HTTP
 - BUG-003: guard `_DEV_PART_SOURCE` para HTTP sources
@@ -342,32 +344,38 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - BUG-007: unificar espera NBD + `return 1` explícito
 
 ### Commit `7318e2d` — `feat: add checksum integrity verification with TUI toggle`
+
 - DATA-001: verificación SHA-256 post-clonación
 - `verify_partition_checksum` function
 - `checksums.sha256` opcional en proyectos
 - Toggle `verify_checksums` en Settings
 
 ### Commit `a6f6093` — `fix: apply Fase 1 codebase audit items`
+
 - D-01: `--timeout` en todas las llamadas `wget`
 - SH-001: `set -euo pipefail` en `build.sh`, `set -o pipefail` en `menu.sh`
 - SH-007: `sed -i.bak` para compatibilidad busybox
 - SH-010: `{0..15}` → `$(seq 0 15)`
 
 ### Commit `6490858` — `fix: remove premature partprobe call`
+
 - Bug latente expuesto por `set -u` en `build.sh`: `partprobe` antes de asignar `LOOPDEV`
 
 ### Commit `645cc36` — `refactor: remove dead code`
+
 - Eliminadas 6 funciones muertas (~218 líneas): `shrink_HD`, `shrink_part`, `ls_parts`, `set_journal`, `set_hostname`, `clone_iso`
 - `check_resolv` comentado eliminado de `menu.sh`
 - Actualizada documentación en `functions.md`
 
 ### Commit `ae30425` — `refactor: apply SH-006/008/009/003`
+
 - SH-006: `--` en `cp`, `rm`
 - SH-008: `source` → `.`
 - SH-009: `! [ $? = 0 ]` → `[ $? -ne 0 ]`
 - SH-003: eliminar `function` keyword (POSIX `funcname()`)
 
 ### Commit `ed02668` — `refactor: IFS save/restore, local variables, nbd-first-free return`
+
 - SH-002: `IFS` save/restore con `_OLD_IFS` (3 funciones)
 - SH-004: `local` faltante para `_LEN`
 - SH-011: `_LEN` declarada `local`

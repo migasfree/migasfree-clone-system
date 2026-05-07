@@ -32,3 +32,5 @@ udev
 udev-openrc
 wget
 qemu-block-curl
+openssh-client
+pv
