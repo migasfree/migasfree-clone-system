@@ -396,7 +396,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - D-02: Añadido control de errores en `get_disk`, `get_image` y `get_keymap`
 - Muestra un mensaje informativo en lugar de un menú vacío si no hay discos, imágenes o keymaps disponibles
 
-### Commit `PENDING` — `fix: implement integrity verification for partition.yml and project files (T-02)`
+### Commit `f84874c` — `fix: implement integrity verification for partition.yml and project files (T-02)`
 
 - T-02: Implementada verificación de integridad mediante SHA-256 para `partition.yml` y todos los archivos `.raw`
 - Nueva función `verify_file_checksum` en `functions` para validar archivos antes de su procesamiento
