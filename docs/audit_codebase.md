@@ -386,7 +386,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - SH-005: `echo` → `printf` para sanitizar `SERVER_IP` y `SERVER_URL` en `hosts`
 - SH-012: Reemplazado parseo columnar de `lsblk` por `lsblk -J` y `jq` en `menu.sh` y `functions`
 
-### Commit `PENDING` — `docs: document shell compatibility and tool requirements`
+### Commit `4437164` — `docs: document shell compatibility and tool requirements`
 
 - SH-013: Añadida sección de compatibilidad Shell y herramientas en `architecture.md`
 - Documentada la dependencia de versiones completas de `util-linux`, `coreutils`, `jq`, `yq` y `wget` para evitar limitaciones de BusyBox
