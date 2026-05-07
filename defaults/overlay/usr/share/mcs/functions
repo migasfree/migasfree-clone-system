@@ -70,6 +70,79 @@ load_partition_scheme() {
 }
 
 
+check_home_viability() {
+    local _TARGET="$1"
+
+    if [ -z "$_JSON_PARTITIONS" ] || [ "$_JSON_PARTITIONS" = "null" ]; then
+        mcs_log "  [INFO] check_home_viability: No partition scheme loaded"
+        return 1
+    fi
+
+    local _HOME_SCHEME=$(echo "$_JSON_PARTITIONS" | jq -r '.[] | select(.name == "HOME") | "\(.number)"' 2>/dev/null)
+    local _SYSTEM_SCHEME=$(echo "$_JSON_PARTITIONS" | jq -r '.[] | select(.name == "SYSTEM") | "\(.number):\(.size)"' 2>/dev/null)
+
+    if [ -z "$_HOME_SCHEME" ]; then
+        mcs_log "  [INFO] check_home_viability: No HOME partition in scheme"
+        return 1
+    fi
+    if [ -z "$_SYSTEM_SCHEME" ]; then
+        mcs_log "  [INFO] check_home_viability: No SYSTEM partition in scheme"
+        return 1
+    fi
+
+    local _HOME_NUM=$(echo "$_HOME_SCHEME" | cut -d: -f1)
+    local _SYSTEM_NUM=$(echo "$_SYSTEM_SCHEME" | cut -d: -f1)
+    local _SYSTEM_SIZE_MB=$(echo "$_SYSTEM_SCHEME" | cut -d: -f2)
+
+    local _DISK_JSON=$(sfdisk -J "$_TARGET" 2>/dev/null)
+    if [ -z "$_DISK_JSON" ]; then
+        mcs_log "  [ERROR] check_home_viability: Cannot read partition table from $_TARGET"
+        return 1
+    fi
+
+    local _HOME_NODE=$(echo "$_DISK_JSON" | jq -r --arg n "HOME" \
+        '.partitiontable.partitions[] | select(.name == $n) | .node')
+    if [ -z "$_HOME_NODE" ]; then
+        mcs_log "  [INFO] check_home_viability: HOME partition not found on $_TARGET"
+        return 1
+    fi
+
+    local _HOME_TARGET_NUM=$(echo "$_HOME_NODE" | sed 's/.*[^0-9]//')
+    if [ "$_HOME_TARGET_NUM" != "$_HOME_NUM" ]; then
+        mcs_log "  [INFO] check_home_viability: HOME partition number mismatch (scheme=$_HOME_NUM, target=$_HOME_TARGET_NUM)"
+        return 1
+    fi
+
+    local _SYSTEM_NODE=$(echo "$_DISK_JSON" | jq -r --arg n "SYSTEM" \
+        '.partitiontable.partitions[] | select(.name == $n) | .node')
+    if [ -z "$_SYSTEM_NODE" ]; then
+        mcs_log "  [INFO] check_home_viability: SYSTEM partition not found on $_TARGET"
+        return 1
+    fi
+
+    local _SYSTEM_TARGET_NUM=$(echo "$_SYSTEM_NODE" | sed 's/.*[^0-9]//')
+    if [ "$_SYSTEM_TARGET_NUM" != "$_SYSTEM_NUM" ]; then
+        mcs_log "  [INFO] check_home_viability: SYSTEM partition number mismatch (scheme=$_SYSTEM_NUM, target=$_SYSTEM_TARGET_NUM)"
+        return 1
+    fi
+
+    if [ -n "$_SYSTEM_SIZE_MB" ] && [ "$_SYSTEM_SIZE_MB" != "0" ] && [ "$_SYSTEM_SIZE_MB" != "null" ]; then
+        local _SYSTEM_SIZE_SEC=$((_SYSTEM_SIZE_MB * 2048))
+        local _SYSTEM_TARGET_SIZE=$(echo "$_DISK_JSON" | jq -r --arg n "SYSTEM" \
+            '.partitiontable.partitions[] | select(.name == $n) | .size')
+        if [ -n "$_SYSTEM_TARGET_SIZE" ] && [ "$_SYSTEM_TARGET_SIZE" != "null" ]; then
+            if [ "$_SYSTEM_TARGET_SIZE" -lt "$_SYSTEM_SIZE_SEC" ]; then
+                mcs_log "  [INFO] check_home_viability: SYSTEM partition too small (target=$_SYSTEM_TARGET_SIZE sectors, need=$_SYSTEM_SIZE_SEC)"
+                return 1
+            fi
+        fi
+    fi
+
+    mcs_log "  [OK] HOME partition can be preserved on $_TARGET"
+    return 0
+}
+
+
 # ============
 # REQUIREMENTS
 # ============
@@ -544,6 +617,7 @@ verify_partition_checksum() {
 clone_HD() {
     local _SOURCE="$1"
     local _TARGET="$2"
+    local _PRESERVE_HOME="${3:-false}"
     local _ORIGIN_TARGET=${_TARGET}
 
     # Load partition scheme if partition.yml exists in source
@@ -556,7 +630,11 @@ clone_HD() {
     local _NUMBER
     local _NAME
 
-    make_HD "$_TARGET" ""
+    if [ "$_PRESERVE_HOME" = "true" ]; then
+        mcs_log "  [INFO] PRESERVE_HOME enabled — skipping repartition and filesystem creation"
+    else
+        make_HD "$_TARGET" ""
+    fi
 
     echo "  [DEBUG] Argument 1 (Image Path): $1" >&2
     echo "  [DEBUG] Argument 2 (Target Disk): $2" >&2
@@ -584,6 +662,11 @@ clone_HD() {
         _NAME=$(echo "$_PARTITION" | awk -F ";" '{print $2}')
         _SIZE=$(echo "$_PARTITION" | awk -F ";" '{print $3}')
         
+        if [ "$_PRESERVE_HOME" = "true" ] && [ "$_NAME" = "HOME" ]; then
+            mcs_log "  [SKIP] $_NAME partition preserved (existing user data kept)"
+            continue
+        fi
+
         mcs_log "  [DEBUG] Checking partition $_NUMBER: $_NAME"
         
         case "$_NAME" in

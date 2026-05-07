@@ -222,12 +222,25 @@ clone_menu(){
     if [[ -z "$DISK" ]]; then
        return
     fi
+
+    local _IMAGE_NAME=$(echo "$IMAGE" | awk '{print $1}')
+    local _DISK_DEV=$(echo "$DISK" | awk '{print $1}')
+    local _PRESERVE_HOME="false"
+
+    load_partition_scheme "$IMAGES_DIR/$_IMAGE_NAME"
+    if check_home_viability "/dev/$_DISK_DEV"; then
+        show_confirm "Local Clone" "Preserve HOME?" "The HOME partition structure is compatible.\nDo you want to preserve existing user data?"
+        if [ $? -eq 0 ]; then
+            _PRESERVE_HOME="true"
+        fi
+    fi
+
     show_confirm "Local Clone" "Clone?" "\n  $IMAGE\n     ||\n     ||\n     \\/\n  /dev/$DISK"
     if [[ $? -eq 0 ]]; then
 	IMAGE=$(echo "$IMAGE" | awk '{print $1}')
         DISK=$(echo "/dev/$DISK" | awk '{print $1}')
         START_TIME=$(date +%s)
-        clone_HD "$IMAGES_DIR/$IMAGE" $DISK
+        clone_HD "$IMAGES_DIR/$IMAGE" $DISK "$_PRESERVE_HOME"
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
         DURATION=$(printf '%dm %ds' $((ELAPSED/60)) $((ELAPSED%60)))
@@ -268,6 +281,17 @@ network_clone_menu() {
         DOWNLOAD_URL="$URL_PATH$FILE/"
     fi
 
+    local _DISK_DEV=$(echo "$DISK" | awk '{print $1}')
+    local _PRESERVE_HOME="false"
+
+    load_partition_scheme "$DOWNLOAD_URL"
+    if check_home_viability "/dev/$_DISK_DEV"; then
+        show_confirm "Network Clone" "Preserve HOME?" "The HOME partition structure is compatible.\nDo you want to preserve existing user data?"
+        if [ $? -eq 0 ]; then
+            _PRESERVE_HOME="true"
+        fi
+    fi
+
     show_confirm "Network Clone" "Clone?" "\n  $FILE\n     ||\n     ||\n     \\/\n  /dev/$DISK"
     if [[ $? -eq 0 ]]; then
         # Clean disk name (remove size)
@@ -278,7 +302,7 @@ network_clone_menu() {
         echo "[+] Target: /dev/$DISK"
         echo ""
         START_TIME=$(date +%s)
-        clone_HD "$DOWNLOAD_URL" "/dev/$DISK"
+        clone_HD "$DOWNLOAD_URL" "/dev/$DISK" "$_PRESERVE_HOME"
         RET=$?
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
