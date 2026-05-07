@@ -250,10 +250,16 @@ clone_menu(){
         DISK=$(echo "/dev/$DISK" | awk '{print $1}')
         START_TIME=$(date +%s)
         clone_HD "$IMAGES_DIR/$IMAGE" $DISK "$_PRESERVE_HOME"
+        RET=$?
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
         DURATION=$(printf '%dm %ds' $((ELAPSED/60)) $((ELAPSED%60)))
-        show_msg "Local Clone" "Completed!" "$IMAGE -> $DISK\n\nTime elapsed: $DURATION"
+        
+        if [ $RET -eq 0 ]; then
+            show_msg "Local Clone" "Completed!" "$IMAGE -> $DISK\n\nTime elapsed: $DURATION"
+        else
+            show_msg "Local Clone" "Error" "The cloning process failed.\n\nSee /var/log/mcs-clone.log for details."
+        fi
     fi
 }
 
@@ -310,9 +316,9 @@ network_clone_menu() {
         # Clean disk name (remove size)
         DISK=$(echo "$DISK" | awk '{print $1}')
         clear
-        echo "[+] Starting Network Clone..."
-        echo "[+] Source: $DOWNLOAD_URL"
-        echo "[+] Target: /dev/$DISK"
+        mcs_log "[+] Starting Network Clone..."
+        mcs_log "[+] Source: $DOWNLOAD_URL"
+        mcs_log "[+] Target: /dev/$DISK"
         echo ""
         START_TIME=$(date +%s)
         clone_HD "$DOWNLOAD_URL" "/dev/$DISK" "$_PRESERVE_HOME"
@@ -324,7 +330,7 @@ network_clone_menu() {
         if [ $RET -eq 0 ]; then
             show_msg "Network Clone" "Completed!" "Successfully cloned $FILE to /dev/$DISK\n\nTime elapsed: $DURATION"
         else
-            show_msg "Network Clone" "Error" "The cloning process failed. Check network connection."
+            show_msg "Network Clone" "Error" "The cloning process failed.\n\nSee /var/log/mcs-clone.log for details."
         fi
     fi
 }
@@ -386,14 +392,14 @@ download_image() {
         FILE_DIR="$FILE/"
         DOWNLOAD_URL="$URL_PATH$FILE_DIR"
         mkdir -p "$IMAGES_DIR/$FILE_DIR"
-        echo "[+] Downloading project $FILE..."
+        mcs_log "[+] Downloading project $FILE..."
         
         # 1. Download partition.yml first
-        echo "[+] Downloading partition.yml..."
+        mcs_log "[+] Downloading partition.yml..."
         /usr/bin/wget -q --timeout=15 "${DOWNLOAD_URL}partition.yml" -O "$IMAGES_DIR/${FILE_DIR}partition.yml" 2>/dev/null
 
         # 1b. Download checksums.sha256 (optional integrity verification)
-        echo "[+] Downloading checksums.sha256..."
+        mcs_log "[+] Downloading checksums.sha256..."
         /usr/bin/wget -q --timeout=15 "${DOWNLOAD_URL}checksums.sha256" -O "$IMAGES_DIR/${FILE_DIR}checksums.sha256" 2>/dev/null
 
         # 2. Determine parts from YAML (MANDATORY)
@@ -401,7 +407,7 @@ download_image() {
         if [ -s "$IMAGES_DIR/${FILE_DIR}partition.yml" ]; then
             _PARTS=$(yq -r '.partitions[].name' "$IMAGES_DIR/${FILE_DIR}partition.yml")
         else
-            echo "  [ERROR] partition.yml is mandatory for project download!"
+            mcs_log "  [ERROR] partition.yml is mandatory for project download!"
             rm -rf "$IMAGES_DIR/$FILE_DIR"
             return 1
         fi
@@ -412,7 +418,7 @@ download_image() {
             # Download all partitions except structural ones (BIOS, EFI, SWAP)
             if [[ "$part_name" != "BIOS" && "$part_name" != "EFI" && "$part_name" != "SWAP" ]]; then
                 local _RAW="${part_name}.raw"
-                echo "[+] Downloading $_RAW..."
+                mcs_log "[+] Downloading $_RAW..."
                 /usr/bin/wget --timeout=30 "${DOWNLOAD_URL}${_RAW}" -O "$IMAGES_DIR/${FILE_DIR}${_RAW}"
                 [ $? -ne 0 ] && _RET=1
             fi

@@ -11,10 +11,20 @@ _JSON_PARTITIONS=""
 _CHECKSUMS_FILE=""
 _VERIFY_CHECKSUMS=1
 
+MCS_LOG_FILE="/var/log/mcs-clone.log"
+
 mcs_log() {
     local _MSG="$1"
+    # Ensure log directory exists
+    mkdir -p "$(dirname "$MCS_LOG_FILE")"
+    # Log with timestamp
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $_MSG" >> "$MCS_LOG_FILE"
+    
+    # Filter output to user: hide [DEBUG] and [INFO] to avoid cluttering the screen
+    if [[ "$_MSG" == *"[DEBUG]"* ]] || [[ "$_MSG" == *"[INFO]"* ]]; then
+        return
+    fi
     echo "$_MSG"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $_MSG" >> /tmp/mcs-clone.log
 }
 
 load_partition_scheme() {
@@ -179,24 +189,24 @@ connect_HD() {
             return 0
         fi
         # Remote RAW image via HTTP via NBD
-        echo "  [DEBUG] Connecting remote RAW image $_TARGET via NBD..." >&2
+        mcs_log "[DEBUG] Connecting remote RAW image $_TARGET via NBD..."
         _DEVICE=$(nbd-first-free)
-        echo "  [DEBUG] Using NBD device: $_DEVICE" >&2
+        mcs_log "[DEBUG] Using NBD device: $_DEVICE"
 
         local _IMG_OPTS="driver=raw,file.driver=http,file.url=$_TARGET,readahead=8388608"
-        echo "  [DEBUG] Image opts: $_IMG_OPTS" >&2
+        mcs_log "[DEBUG] Image opts: $_IMG_OPTS"
 
         qemu-nbd -r -c "$_DEVICE" --image-opts "$_IMG_OPTS" >/dev/null 2>&1
         
         # Wait for partitions to appear (up to 30 seconds)
-        echo "  [DEBUG] Waiting for partitions on $_DEVICE..." >&2
+        mcs_log "[DEBUG] Waiting for partitions on $_DEVICE..."
         local timeout=30
         while [ $timeout -gt 0 ]; do
             partprobe "$_DEVICE" >&2 2>/dev/null
             # Also try partx as fallback for NBD devices
             partx -a "$_DEVICE" 2>/dev/null || :
             if [ -e "${_DEVICE}p1" ] || [ -e "${_DEVICE}1" ]; then
-                echo "  [DEBUG] Partitions detected after $((30 - timeout))s" >&2
+                mcs_log "[DEBUG] Partitions detected after $((30 - timeout))s"
                 echo "$_DEVICE"
                 return 0
             fi
@@ -212,23 +222,23 @@ connect_HD() {
         return 0
     elif [ -f "$_TARGET" ]; then
         # Local file
-        echo "  [DEBUG] Connecting file $_TARGET via NBD..." >&2
+        mcs_log "[DEBUG] Connecting file $_TARGET via NBD..."
         _DEVICE=$(nbd-first-free)
         if [ -z "$_DEVICE" ]; then
             echo "  [ERROR] No free NBD device available" >&2
             return 1
         fi
-        echo "  [DEBUG] Using NBD device: $_DEVICE" >&2
-        qemu-nbd -n -c "$_DEVICE" "$_TARGET" 2>&1 | tee -a /tmp/mcs-clone.log
+        mcs_log "[DEBUG] Using NBD device: $_DEVICE"
+        qemu-nbd -n -c "$_DEVICE" "$_TARGET" 2>&1 | tee -a $MCS_LOG_FILE
 
         # Wait for partitions to appear (up to 30 seconds)
-        echo "  [DEBUG] Waiting for partitions on $_DEVICE..." >&2
+        mcs_log "[DEBUG] Waiting for partitions on $_DEVICE..."
         local timeout=30
         while [ $timeout -gt 0 ]; do
             partprobe "$_DEVICE" >&2 2>/dev/null
             partx -a "$_DEVICE" 2>/dev/null || :
             if [ -e "${_DEVICE}p1" ] || [ -e "${_DEVICE}1" ]; then
-                echo "  [DEBUG] Partitions detected after $((30 - timeout))s" >&2
+                mcs_log "[DEBUG] Partitions detected after $((30 - timeout))s"
                 echo "$_DEVICE"
                 return 0
             fi
@@ -426,9 +436,8 @@ make_file_systems() {
     local _FILESYSTEM
     local _DEV_PART
 
-    echo
-    echo "Creando sistemas de ficheros"
-    echo "============================"
+    mcs_log "Creando sistemas de ficheros"
+    mcs_log "============================"
 
     local _OLD_IFS="$IFS"
     IFS=$'\n'
@@ -441,19 +450,19 @@ make_file_systems() {
 
         case "$_FILESYSTEM" in
             "ext4")
-                echo "Partición $_NUMBER $_NAME -> ext4"
+                mcs_log "Partición $_NUMBER $_NAME -> ext4"
                 umount ${_DEV_PART} 2>/dev/null || :
-                LANG=C yes | mkfs.ext4 -E nodiscard ${_DEV_PART}
+                LANG=C yes | mkfs.ext4 -E nodiscard ${_DEV_PART} >> "$MCS_LOG_FILE" 2>&1
                 ;;
             "swap")
-                echo "Partición $_NUMBER $_NAME -> swap"
+                mcs_log "Partición $_NUMBER $_NAME -> swap"
                 umount ${_DEV_PART} 2>/dev/null || :
-                LANG=C yes | mkswap ${_DEV_PART} > /dev/null
+                LANG=C yes | mkswap ${_DEV_PART} >> "$MCS_LOG_FILE" 2>&1
                 ;;
             "vfat")
-                echo "Partición $_NUMBER $_NAME -> fat"
+                mcs_log "Partición $_NUMBER $_NAME -> fat"
                 umount ${_DEV_PART} 2>/dev/null || :
-                LANG=C yes | mkfs.fat ${_DEV_PART} > /dev/null
+                LANG=C yes | mkfs.fat ${_DEV_PART} >> "$MCS_LOG_FILE" 2>&1
                 ;;
             *)
                 ;;
@@ -502,7 +511,7 @@ make_partitions() {
     local _SFDISK_SCRIPT="/tmp/sfdisk.script"
 
     echo
-    echo "Creating a new GPT partition table on $_DEVICE using sfdisk"
+    mcs_log "Creating a new GPT partition table on $_DEVICE using sfdisk"
     
     # Header
     cat <<EOF > "$_SFDISK_SCRIPT"
@@ -520,7 +529,7 @@ EOF
         (if .size != "0" and .size != 0 and .size != null then "size=\((.size|tonumber)*2048), " else "" end) + 
         "type=\(.type), name=\"\(.name)\""' >> "$_SFDISK_SCRIPT"
 
-    sfdisk "$_DEVICE" < "$_SFDISK_SCRIPT" &>/dev/null
+    sfdisk "$_DEVICE" < "$_SFDISK_SCRIPT" >> "$MCS_LOG_FILE" 2>&1
     check_result
     
     partprobe "$_DEVICE"
@@ -532,9 +541,9 @@ EOF
 check_result() {
     if [ $? = 0 ]
     then
-      echo "    [OK]"
+      mcs_log "    [OK]"
     else
-      echo "    \e[31m[ERROR]\e[0m"
+      mcs_log "    [ERROR]"
       sleep 5
     fi
 }
@@ -636,8 +645,8 @@ clone_HD() {
         make_HD "$_TARGET" ""
     fi
 
-    echo "  [DEBUG] Argument 1 (Image Path): $1" >&2
-    echo "  [DEBUG] Argument 2 (Target Disk): $2" >&2
+    mcs_log "[DEBUG] Argument 1 (Image Path): $1"
+    mcs_log "[DEBUG] Argument 2 (Target Disk): $2"
 
     _SOURCE=$(connect_HD "$1")
     if [ -z "$_SOURCE" ]; then
@@ -651,8 +660,8 @@ clone_HD() {
         return 1
     fi
     
-    echo "  [DEBUG] Connected Source: $_SOURCE" >&2
-    echo "  [DEBUG] Connected Target: $_TARGET" >&2
+    mcs_log "[DEBUG] Connected Source: $_SOURCE"
+    mcs_log "[DEBUG] Connected Target: $_TARGET"
 
     local _OLD_IFS="$IFS"
     IFS=$'\n'
@@ -684,11 +693,11 @@ clone_HD() {
                     if [ -z "$_DEV_PART_TARGET" ]; then
                         _DEV_PART_TARGET=$(part_by_id "$_TARGET" "$_NUMBER")
                     fi
-                    echo "  [DEBUG] Target device: $_DEV_PART_TARGET" | tee -a /tmp/mcs-clone.log
+                    mcs_log "[DEBUG] Target device: $_DEV_PART_TARGET"
 
                     local _REMOTE_URL="${_SOURCE}${_NAME}.raw"
                     mcs_log "  [+] Copying partition $_NAME via wget from ${_REMOTE_URL}..."
-                    wget -O - "$_REMOTE_URL" | dd of="${_DEV_PART_TARGET}" bs=1M status=progress 2>&1 | tee -a /tmp/mcs-clone.log
+                    wget -q -O - "$_REMOTE_URL" 2>>"$MCS_LOG_FILE" | dd of="${_DEV_PART_TARGET}" bs=1M 2>&1 | tee -a "$MCS_LOG_FILE"
                     sync
                     verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || mcs_log "  [WARNING] Integrity check failed for $_NAME"
                 elif [ -d "$_SOURCE" ]; then
@@ -696,47 +705,21 @@ clone_HD() {
                     if [ -z "$_DEV_PART_TARGET" ]; then
                         _DEV_PART_TARGET=$(part_by_id "$_TARGET" "$_NUMBER")
                     fi
-                    echo "  [DEBUG] Target device: $_DEV_PART_TARGET" | tee -a /tmp/mcs-clone.log
+                    mcs_log "[DEBUG] Target device: $_DEV_PART_TARGET"
 
                     local _RAW_FILE="${_SOURCE}/${_NAME}.raw"
 
                     if [ -f "$_RAW_FILE" ]; then
                         mcs_log "  [+] Copying partition $_NAME from ${_RAW_FILE}..."
-                        dd if="$_RAW_FILE" of="${_DEV_PART_TARGET}" bs=1M status=progress 2>&1 | tee -a /tmp/mcs-clone.log
+                        dd if="$_RAW_FILE" of="${_DEV_PART_TARGET}" bs=1M 2>&1 | tee -a $MCS_LOG_FILE
                         sync
                         verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || mcs_log "  [WARNING] Integrity check failed for $_NAME"
                     else
-                        _DEV_PART_SOURCE=$(part_by_label_on_device "$_SOURCE" "$_NAME")
-                        if [ -z "$_DEV_PART_SOURCE" ]; then
-                            _DEV_PART_SOURCE=$(part_by_id "$_SOURCE" "$_NUMBER")
-                        fi
-                        echo "  [DEBUG] Source device: $_DEV_PART_SOURCE" | tee -a /tmp/mcs-clone.log
-
-                        echo "  [WARNING] Raw image not found: $_RAW_FILE, falling back to rsync..." | tee -a /tmp/mcs-clone.log
-                        if [ -n "$_DEV_PART_SOURCE" ]; then
-                            mkdir -p /mnt/source
-                            _FSTYPE=$(blkid -o value -s TYPE "${_DEV_PART_SOURCE}")
-                            if [ -n "$_FSTYPE" ]; then
-                                mount -o ro -t "$_FSTYPE" "${_DEV_PART_SOURCE}" /mnt/source 2>&1 | tee -a /tmp/mcs-clone.log
-                            else
-                                mount -o ro "${_DEV_PART_SOURCE}" /mnt/source 2>&1 | tee -a /tmp/mcs-clone.log
-                            fi
-
-                            echo "  [+] Copying files for $_NAME (rsync)..." | tee -a /tmp/mcs-clone.log
-                            mkdir -p /mnt/target
-                            mount -o rw,noatime,nodiratime,nodiscard -t auto "${_DEV_PART_TARGET}" /mnt/target 2>&1 | tee -a /tmp/mcs-clone.log
-                            rsync -aHAXx --info=progress2 --numeric-ids --ignore-errors --timeout=120 --delete /mnt/source/ /mnt/target/ 2>&1 | tee -a /tmp/mcs-clone.log
-                            sync
-                            verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || mcs_log "  [WARNING] Integrity check failed for $_NAME"
-
-                            umount /mnt/source 2>/dev/null
-                            rmdir /mnt/source
-                            umount /mnt/target 2>/dev/null
-                            rmdir /mnt/target
-                        fi
+                        mcs_log "  [ERROR] Partition image not found: $_RAW_FILE"
+                        _RET=1
                     fi
                 else
-                    echo "  [ERROR] Unknown source type for $_NAME cloning." | tee -a /tmp/mcs-clone.log
+                    mcs_log "  [ERROR] Unknown source type for $_NAME cloning."
                 fi
 
                 ;;
@@ -757,43 +740,42 @@ rescue() {
     local _DEVICE="$1"
     local _MOUNT="/mnt/rescue"
 
-    echo
-    echo "Configuring Bootloader (Rescue)"
-    echo "=============================="
+    mcs_log "Configuring Bootloader (Rescue)"
+    mcs_log "=============================="
 
     _DEVICE=$(connect_HD "${_DEVICE}")
     local _DEV_SYSTEM=$(part_by_name "$_DEVICE" SYSTEM)
     local _DEV_EFI=$(part_by_name "$_DEVICE" EFI)
 
     mkdir -p "${_MOUNT}"
-    mount -t auto "${_DEV_SYSTEM}" "${_MOUNT}"
+    mount -t auto "${_DEV_SYSTEM}" "${_MOUNT}" >> "$MCS_LOG_FILE" 2>&1
 
     if [ -n "$_DEV_EFI" ]; then
         mkdir -p "${_MOUNT}/boot/efi"
-        mount -t auto "${_DEV_EFI}" "${_MOUNT}/boot/efi"
+        mount -t auto "${_DEV_EFI}" "${_MOUNT}/boot/efi" >> "$MCS_LOG_FILE" 2>&1
     fi
 
     for dir in dev proc sys run; do
-        mount --bind "/$dir" "${_MOUNT}/$dir"
+        mount --bind "/$dir" "${_MOUNT}/$dir" >> "$MCS_LOG_FILE" 2>&1
     done
 
-    echo "Updating /etc/fstab..."
+    mcs_log "Updating /etc/fstab..."
     make_fstab "$_DEVICE" > "${_MOUNT}/etc/fstab"
 
     mcs_log "Installing GRUB (BIOS)..."
     echo "(hd0) ${_DEVICE}" > "${_MOUNT}/boot/grub/device.map"
 
     if chroot "${_MOUNT}" which grub-install >/dev/null 2>&1; then
-        chroot "${_MOUNT}" grub-install --target=i386-pc --force --modules="part_gpt biosdisk" "${_DEVICE}" 2>&1 | tee -a /tmp/mcs-clone.log
+        chroot "${_MOUNT}" grub-install --target=i386-pc --force --modules="part_gpt biosdisk" "${_DEVICE}" 2>&1 | tee -a $MCS_LOG_FILE
     else
         mcs_log "  [WARNING] grub-install not found inside target, trying from host..."
-        grub-install --target=i386-pc --boot-directory="${_MOUNT}/boot" --force "${_DEVICE}" 2>&1 | tee -a /tmp/mcs-clone.log
+        grub-install --target=i386-pc --boot-directory="${_MOUNT}/boot" --force "${_DEVICE}" 2>&1 | tee -a $MCS_LOG_FILE
     fi
 
     if [ -n "$_DEV_EFI" ]; then
         mcs_log "Installing GRUB (UEFI)..."
         if chroot "${_MOUNT}" which grub-install >/dev/null 2>&1; then
-            chroot "${_MOUNT}" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=grub --force 2>&1 | tee -a /tmp/mcs-clone.log
+            chroot "${_MOUNT}" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=grub --force 2>&1 | tee -a $MCS_LOG_FILE
         else
             mcs_log "  [WARNING] grub-install (UEFI) not found inside target, skipping chroot install..."
         fi
@@ -803,19 +785,19 @@ rescue() {
 
     mcs_log "Updating GRUB configuration..."
     if chroot "${_MOUNT}" which grub-mkconfig >/dev/null 2>&1; then
-        chroot "${_MOUNT}" grub-mkconfig -o /boot/grub/grub.cfg 2>&1 | tee -a /tmp/mcs-clone.log
+        chroot "${_MOUNT}" grub-mkconfig -o /boot/grub/grub.cfg 2>&1 | tee -a $MCS_LOG_FILE
     else
         mcs_log "  [WARNING] grub-mkconfig not found inside target, skipping configuration update..."
     fi
 
     local _PARTUUID_SYSTEM=$(blkid -o value -s PARTUUID "${_DEV_SYSTEM}")
     if [ -n "$_PARTUUID_SYSTEM" ]; then
-        echo "Fixing root= in grub.cfg: ${_DEV_SYSTEM} -> PARTUUID=${_PARTUUID_SYSTEM}" | tee -a /tmp/mcs-clone.log
+        mcs_log "Fixing root= in grub.cfg: ${_DEV_SYSTEM} -> PARTUUID=${_PARTUUID_SYSTEM}"
         sed -i.bak "s|root=${_DEV_SYSTEM}|root=PARTUUID=${_PARTUUID_SYSTEM}|g" "${_MOUNT}/boot/grub/grub.cfg" && rm -f "${_MOUNT}/boot/grub/grub.cfg.bak"
         sed -i.bak "s|root=UUID=[^ ]*|root=PARTUUID=${_PARTUUID_SYSTEM}|g" "${_MOUNT}/boot/grub/grub.cfg" && rm -f "${_MOUNT}/boot/grub/grub.cfg.bak"
     fi
 
-    echo "Syncing and unmounting..."
+    mcs_log "Syncing and unmounting..."
     sync
 
     for dir in dev proc sys run; do
@@ -835,11 +817,11 @@ resize_MCS_DATA() {
     local DISK=$(disk_by_label "$LABEL")
 
     umount $PART
-    parted --script --fix $DISK resizepart 4 100% >/dev/null 2>&1
+    parted --script --fix $DISK resizepart 4 100% >> "$MCS_LOG_FILE" 2>&1
     partprobe $DISK
     sleep 2
-    e2fsck -f -p $PART >/dev/null 2>&1
-    resize2fs $PART >/dev/null 2>&1
+    e2fsck -f -p $PART >> "$MCS_LOG_FILE" 2>&1
+    resize2fs $PART >> "$MCS_LOG_FILE" 2>&1
     mount $PART /mcsdata
 }
 

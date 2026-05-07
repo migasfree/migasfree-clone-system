@@ -24,7 +24,6 @@ font-terminus
 kbd
 ca-certificates
 bind-tools
-rsync
 tzdata
 grub
 grub-efi
