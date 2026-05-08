@@ -526,20 +526,26 @@ EOF
     sfdisk "$_DEVICE" < "$_SFDISK_SCRIPT" >> "$MCS_LOG_FILE" 2>&1
     check_result
     
-    partprobe "$_DEVICE"
-    sync
-    sleep 2
+    sync_parts "$_DEVICE"
     sfdisk -l "$_DEVICE"
 }
 
 check_result() {
     if [ $? = 0 ]
     then
-      mcs_log "    [OK]"
+      mcs_log "    [+] sfdisk done"
     else
       mcs_log "    [ERROR]"
       sleep 5
     fi
+}
+
+
+sync_parts() {
+    local _DEVICE="$1"
+    partprobe "$_DEVICE"
+    sync
+    udevadm settle 2>/dev/null || sleep 2
 }
 
 
@@ -564,9 +570,7 @@ make_HD() {
 
     _DEV=$(connect_HD "$_DEVICE")
     make_partitions "$_DEV"
-    partprobe "$_DEV"
-    sync
-    sleep 2
+    sync_parts "$_DEV"
     make_file_systems "$_DEV"
     disconnect_HD "$_DEV"
 

@@ -320,7 +320,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | `dialog --backtitle ... --title ... --menu` | 5 | `menu.sh:128,307,409,432,450` |
 | `lsblk \| grep \| awk` para encontrar device/part por label | 6 | `menu.sh:46-58,61-74`, `functions:155-170,172-186` |
 | `mount -o ro` + `mount -o rw` con detección de `_FSTYPE` | 2 | `functions:620-629`, `functions:667-676` |
-| `partprobe; sync; sleep 2; sfdisk -l` | 2 | `functions:503-505`, `functions:98-106` |
+| `partprobe; sync; sleep 2` (duplicado) | ~~2~~ → **0** ✅ | Reemplazado por `sync_parts()` helper |
 
 ---
 
@@ -533,6 +533,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | **P2** | `prefix_part`: reemplazar hardcode `/dev/sd` por heurística digito/letra | ✅ `41a38d3` |
 | **P2** | `max_home_size`: eliminar `tr` hack, usar `jq add` directo + `local` + comillas | ✅ `652e680` |
 | **P2** | `make_fstab`: warning para particiones no reconocidas con punto de montaje | ✅ `26a6962` |
+| **P3** | `sync_parts()` helper: eliminar duplicación `partprobe; sync; sleep 2` | ✅ `ee37131` |
 
 ### ✅ Fase 3.2 — projects.json y descripciones (2026-05-08)
 
