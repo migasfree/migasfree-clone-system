@@ -459,6 +459,20 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - Formato: `[{"name": "...", "enabled": true}, ...]`
 - Campo `enabled` para activar/desactivar proyectos sin borrar archivos
 
+### Commit `19e2b99` — `feat: show description field in remote project menus`
+
+- `fetch_remote_projects` incluye `description` en formato `name - desc`
+- `network_clone_menu` y `download_image` extraen solo el nombre con `awk`
+
+### Commit `e8b312c` — `feat: save projects.json locally for description in local menus`
+
+- `download_image` guarda `projects.json` en `$IMAGES_DIR` al descargar
+- `get_image` y `list_image` lo leen para mostrar descripciones en local
+
+### Commit `f556574` — `fix: skip projects.json in local image listings`
+
+- Salta `projects.json` en los bucles de `get_image` y `list_image`
+
 ---
 
 ## 10. Plan de Remediación (Actualizado)
@@ -519,6 +533,17 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | **P2** | `prefix_part`: reemplazar hardcode `/dev/sd` por heurística digito/letra | ✅ `41a38d3` |
 | **P2** | `max_home_size`: eliminar `tr` hack, usar `jq add` directo + `local` + comillas | ✅ `652e680` |
 | **P2** | `make_fstab`: warning para particiones no reconocidas con punto de montaje | ✅ `26a6962` |
+
+### ✅ Fase 3.2 — projects.json y descripciones (2026-05-08)
+
+| Prioridad | Acción | Estado |
+| :--- | :--- | :--- |
+| **P1** | Reemplazar parseo HTML por JSON (`fetch_remote_projects`) | ✅ `872fff6` |
+| **P1** | Eliminar fallback HTML legacy | ✅ `0b2c141` |
+| **P2** | Soporte formato objeto `projects.json` con `enabled` | ✅ `620cde5` |
+| **P2** | Mostrar `description` en menús de red y descarga | ✅ `19e2b99` |
+| **P2** | Guardar `projects.json` local al descargar | ✅ `e8b312c` |
+| **P3** | Saltar `projects.json` en listados locales | ✅ `f556574` |
 
 ---
 
