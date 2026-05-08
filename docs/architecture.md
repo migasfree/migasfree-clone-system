@@ -99,9 +99,9 @@ This file indexes all available projects on the server. MCS fetches it instead o
 
 ```json
 [
-  {"name": "ubuntu-22-04",  "enabled": true},
-  {"name": "windows-10",    "enabled": true},
-  {"name": "centos-7",      "enabled": false}
+  {"name": "ubuntu-22-04",  "enabled": true,  "description": "Ubuntu 22.04 LTS"},
+  {"name": "windows-10",    "enabled": true,  "description": "Windows 10 Enterprise"},
+  {"name": "centos-7",      "enabled": false, "description": "CentOS 7 (discontinued)"}
 ]
 ```
 
@@ -109,6 +109,7 @@ This file indexes all available projects on the server. MCS fetches it instead o
 | :--- | :--- | :--- | :--- |
 | `name` | string | — | Project directory name. Must match the directory on the server. |
 | `enabled` | boolean | `true` | Controls visibility in MCS. When `false`, the project is not listed in the cloning menus. Useful for deactivating projects without removing files. |
+| `description` | string | `""` | Human-readable description shown alongside the project name in cloning menus. |
 
 If the `enabled` field is omitted, the project is shown by default. Only items with `enabled: false` are filtered out.
 

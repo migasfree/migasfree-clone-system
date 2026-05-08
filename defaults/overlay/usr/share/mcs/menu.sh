@@ -149,7 +149,7 @@ main_menu() {
 fetch_remote_projects() {
     local _URL="$1"
 
-    wget -q --timeout=15 -O - "${_URL}projects.json" 2>/dev/null | jq -r '.[] | select(.enabled != false) | .name' 2>/dev/null | awk '{print NR " \"" $0 "\""}'
+    wget -q --timeout=15 -O - "${_URL}projects.json" 2>/dev/null | jq -r '.[] | select(.enabled != false) | if .description then "\(.name) - \(.description)" else .name end' 2>/dev/null | awk '{print NR " \"" $0 "\""}'
 }
 
 
@@ -295,6 +295,7 @@ network_clone_menu() {
     if [[ -z $FILE ]]; then
         return
     fi
+    FILE=$(echo "$FILE" | awk '{print $1}')
 
     DISK=$(get_disk)
     if [[ -z "$DISK" ]]; then
@@ -389,6 +390,7 @@ download_image() {
     if [[ -z $FILE ]]; then
         return
     fi
+    FILE=$(echo "$FILE" | awk '{print $1}')
 
     # Check if FILE is already a full URL
     if [[ $FILE == http* ]]; then
