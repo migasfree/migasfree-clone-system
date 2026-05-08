@@ -256,6 +256,7 @@ connect_HD() {
     elif [ -b "$_TARGET" ]; then
         # Block device
         echo "$_TARGET"
+        return 0
     fi
 
 }
@@ -546,12 +547,12 @@ make_HD() {
     local _DEVICE="$1"
     local _SIZE="$2"
 
-    if [ -z $_SIZE ]
+    if [ ! -b "$_DEVICE" ] && [ ! -f "$_DEVICE" ] && [ -z "$_SIZE" ]
     then
-        _SIZE=$(( 250*1024 )) # en MB
+        _SIZE=$(( 250*1024 )) # en MB, solo para crear imágenes de prueba
     fi
 
-    if [ -f $_DEVICE ]
+    if [ -f "$_DEVICE" ]
     then
         echo "Error: file $_DEVICE exists." >&2
         exit 1

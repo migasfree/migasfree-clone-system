@@ -20,7 +20,9 @@ Determinados hallazgos marcados inicialmente como "riesgos" o "anomalías" se ha
 - **Auto-redimensionado `resize_MCS_DATA`**: razonable en un live USB con persistencia (partición `MCS_DATA`), análogo al overlay persistente de SystemRescue.
 - **NBD + HTTP Streaming ("Turbo Clone")**: no es sobreingeniería; es el **feature diferencial** del proyecto frente a live USBs tradicionales.
 
-Los hallazgos que **sí se mantienen** son aquellos que constituyen code smells, bugs funcionales reales, o malas prácticas independientes del contexto (ej. `umount -l` sin sincronización, parseo HTML frágil, valores por defecto engañosos).
+Los hallazgos que **sí se mantienen** son aquellos que constituyen code smells, bugs funcionales reales, o malas prácticas independientes del contexto (ej. parseo HTML frágil, valores por defecto engañosos, ramas sin `return` explícito).
+
+> **Nota sobre `umount -l` en `rescue`**: fue inicialmente señalado como riesgo de integridad, pero tras revisión se confirma que es correcto. El `sync` (line 845) se ejecuta antes de desmontar, y el `-l` solo se aplica a bind mounts de `/dev`, `/proc`, `/sys`, `/run` (sistemas de archivos virtuales sin datos persistentes). Los montajes con datos reales (`/boot/efi` y raíz) usan `umount` normal.
 
 ---
 
@@ -277,7 +279,7 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 | `set_journal` | `functions:411-442` | No referenciada en `menu.sh` | Eliminar (ext4 ya tiene journal por defecto) |
 | `ls_parts` | `functions:150-153` | Solo llamada por `shrink_HD` | Eliminar si se elimina `shrink_HD` |
 | `check_resolv` | `menu.sh:502` | Comentada (`#check_resolv`) | Eliminar línea comentada |
-| `connect_HD` rama block device | `functions:130-133` | Potencialmente sin uso en flujo actual | Verificar — el target de `clone_HD` siempre es `/dev/sdX` |
+| `connect_HD` rama block device | `functions:256-259` | Verificado: sí se usa en flujo actual (`clone_HD` recibe `/dev/sdX` como target) | ❌ Descartado — no es código muerto |
 
 ### 6.2 Ramas de código no alcanzables
 
@@ -418,6 +420,18 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - Nueva función `verify_file_checksum` en `functions` para validar archivos antes de su procesamiento
 - Mejora la robustez ante descargas incompletas o manipulación de archivos en el servidor
 
+### Commit `b95c6e8` — `docs: reclassify audit findings in live USB context`
+
+- Añadida sección 0 con nota de contexto live USB
+- E-01, S-01, S-02 reclasificados como "no procede"
+- Tabla STRIDE y métricas actualizadas
+
+### Commits siguientes — Quick Wins post-audit
+
+- `return 0` explícito en `connect_HD` rama block device
+- `make_HD`: condición explícita para default 250GB (solo aplica cuando se crean imágenes de prueba nuevas)
+- Tabla de código muerto actualizada: `connect_HD` rama block device descartado como muerto
+
 ---
 
 ## 10. Plan de Remediación (Actualizado)
@@ -462,6 +476,15 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | **P3** | SH-012: `lsblk` con `-J` (JSON) | ✅ |
 | **P3** | SH-013: documentar diferencias busybox/GNU | ✅ |
 
+### ✅ Quick Wins (2026-05-08)
+
+| Prioridad | Acción | Estado |
+| :--- | :--- | :--- |
+| **P3** | `return 0` explícito en `connect_HD` block device | ✅ |
+| **P3** | `make_HD`: condicionar default 250GB solo para imágenes de prueba | ✅ |
+| **P3** | Corregir tabla código muerto: descartar `connect_HD` block device | ✅ |
+| **P3** | Corregir nota `umount -l` — confirmado que es correcto, no requiere cambio | ✅ |
+
 ---
 
 ## 11. Métricas de Calidad (Actualizadas)
@@ -475,6 +498,8 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | Código muerto | ~218 líneas (~12%) | **0** ✅ eliminado | 0 |
 | Shell scripts con `set -euo pipefail` | 1/4 | **2/4** ✅ | 4/4 |
 | Documentación cubierta por ADR | 1 | **2** ✅ (sección 0 añadida) | Todas las decisiones estructurales |
+| Code smells activos (sin fix) | - | **2** (parseo HTML, default 250GB condicionado) | 0 |
+| Ramas sin return explícito | - | **0** ✅ (`connect_HD` block device corregido) | 0 |
 
 ---
 
