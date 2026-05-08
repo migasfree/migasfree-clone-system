@@ -2,7 +2,7 @@
 
 **Rol revisor**: Technical Lead & Architect
 **Fecha**: 2026-05-05
-**Última actualización**: 2026-05-08 (refactor clone_HD + reclasificación STRIDE final)
+**Última actualización**: 2026-05-08 (refactor clone_HD + reclasificación STRIDE final + eliminación duplicación dialog)
 **Alcance**: Auditoría estática completa del código fuente (1860 líneas en 7 archivos principales).
 **Marco**: STRIDE (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation of Privilege) + ADR.
 
@@ -323,7 +323,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 
 | Patrón duplicado | Ocurrencias | Ubicaciones | Estado |
 | :--- | :--- | :--- | :--- |
-| `dialog --backtitle ... --title ... --menu` | 5 | `menu.sh:128,307,409,432,450` | 🟡 pendiente |
+| `dialog --backtitle ... --title ... --menu` | ~~5~~ → **0** ✅ | `menu.sh` — reemplazado por helpers `show_selection`/`show_msg` | ✅ resuelto |
 | `lsblk \| grep \| awk` para encontrar device/part por label | 6 | `menu.sh:46-58,61-74`, `functions:155-170,172-186` | ✅ resuelto (SH-012) |
 | `mount -o ro` + `mount -o rw` con detección de `_FSTYPE` | 2 | `functions:620-629`, `functions:667-676` | ✅ eliminado (BUG-002) |
 | `partprobe; sync; sleep 2` (duplicado) | ~~2~~ → **0** ✅ | Reemplazado por `sync_parts()` helper | ✅ resuelto |
@@ -519,6 +519,13 @@ Se implementó una suite completa de tests unitarios con bats-core, mocks de sis
 - E-03 (chroot --force): necesario para GPT+BIOS, misma práctica que Debian/Ubuntu
 - Métrica STRIDE: 6/17 mitigados + 11/17 no proceden = **17/17 ✅**
 - Actualizadas tablas R, I, E con columna Contexto y veredicto
+
+### Commit `HEAD` — `refactor: eliminate remaining raw dialog calls in menu.sh`
+
+- Reemplazada llamada directa `dialog --clear --backtitle --title --menu` en `main_menu` por `show_selection` con opciones escritas a `$TEMPORAL_FILE`. El `case` ahora hace match por etiqueta de texto.
+- Reemplazadas 2 llamadas `dialog --msgbox` sueltas en `download_image` por `show_msg`.
+- Cierra el último ítem de duplicación de código pendiente en la tabla 7.3.
+- 0 llamadas directas a `dialog` fuera de los 4 helpers (`show_selection`, `show_confirm`, `show_msg`, `info_msg`).
 
 ### Commit `HEAD` — `feat: add bats-core unit test suite (66 tests)`
 

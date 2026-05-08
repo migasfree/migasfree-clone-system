@@ -121,22 +121,19 @@ mkdir -p "$IMAGES_DIR"
 
 main_menu() {
     while true; do
-        CHOICE=$(dialog --clear --backtitle "$TITLE" \
-                      --title "Main Menu" \
-                      --menu "" 15 55 5 \
-                      1 "Network Clone" \
-                      2 "Local Clone" \
-                      3 "Local Images" \
-                      4 "Settings" \
-                      5 "Poweroff" \
-                      3>&1 1>&2 2>&3)
+        echo "1 \"Network Clone\"" > "$TEMPORAL_FILE"
+        echo "2 \"Local Clone\"" >> "$TEMPORAL_FILE"
+        echo "3 \"Local Images\"" >> "$TEMPORAL_FILE"
+        echo "4 \"Settings\"" >> "$TEMPORAL_FILE"
+        echo "5 \"Poweroff\"" >> "$TEMPORAL_FILE"
+        CHOICE=$(show_selection "" "Main Menu")
 
         case $CHOICE in
-            1) network_clone_menu ;;
-            2) clone_menu ;;
-            3) images_menu ;;
-            4) settings_menu ;;
-            5) off ;;
+            "Network Clone") network_clone_menu ;;
+            "Local Clone") clone_menu ;;
+            "Local Images") images_menu ;;
+            "Settings") settings_menu ;;
+            "Poweroff") off ;;
             *) quit ;;
         esac
     done
@@ -471,9 +468,9 @@ download_image() {
         if [ $_RET -eq 0 ]; then
             # Save project index locally for description lookups
             wget -q --timeout=15 -O "$IMAGES_DIR/projects.json" "${URL_PATH}projects.json" 2>/dev/null || :
-            dialog --msgbox "Download project $FILE completed!" 10 50
+            show_msg "Local Images" "Download" "Download project $FILE completed!"
         else
-            dialog --msgbox "Download project $FILE failed!" 10 50
+            show_msg "Local Images" "Download" "Download project $FILE failed!"
         fi
     fi
 }
