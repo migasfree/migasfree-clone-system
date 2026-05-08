@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail
 
 # Migasfree Clone System - Testing Script
 # This script prepares a testing image and launches QEMU.

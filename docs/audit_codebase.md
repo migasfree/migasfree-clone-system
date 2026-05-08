@@ -201,7 +201,7 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 
 | ID | Violación | Ubicación | Fix | Estado |
 | :--- | :--- | :--- | :--- | :--- |
-| **SH-001** | `set -e` ausente en `menu.sh`, `build.sh` | `menu.sh:1`, `build.sh:1` | Añadir `set -euo pipefail` | ✅ **RESUELTO** (`a6f6093`) |
+| **SH-001** | `set -o pipefail` ausente en varios scripts | `menu.sh:1`, `build.sh:1`, `test.sh:1`, `test-boot.sh:1`, `makeusb.sh:1` | Añadir `set -o pipefail` | ✅ **RESUELTO** (`a6f6093`, `6f1ddfa`) |
 | **SH-002** | `IFS=$'\n'` no restaurado tras error | `functions:375,424` | Usar subshell o `trap` para restaurar IFS | ✅ **RESUELTO** (`ed02668`) |
 | **SH-003** | `function` keyword innecesario (no POSIX) | `functions:10,16,65,77,...` | Usar `funcname() { }` | ✅ **RESUELTO** (`ae30425`) |
 | **SH-004** | Variables no locales sin `local` | `functions:158,172` (`_KNAME`) | Declarar con `local` | ✅ **RESUELTO** (`ed02668`) |
@@ -552,11 +552,11 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | Métrica | Antes | Ahora | Target |
 | :--- | :--- | :--- | :--- |
 | Bugs confirmados sin resolver | 7 | **0** ✅ | ≤3 |
-| Violaciones SH resueltas | 0/13 | **12/13** ✅ | 13/13 |
+| Violaciones SH resueltas | 0/13 | **13/13** ✅ | 13/13 |
 | STRIDE resueltos | 0/17 | **6/17** mitigados (T-01, T-02, T-03, D-01, D-02, D-03) — **3/17 no proceden** en contexto live USB (S-01, S-02, E-01) | documentar |
 | Cobertura de tests (escenarios) | 4/14 (29%) | 4/14 (29%) | >70% |
 | Código muerto | ~218 líneas (~12%) | **0** ✅ eliminado | 0 |
-| Shell scripts con `set -euo pipefail` | 1/4 | **2/4** ✅ | 4/4 |
+| Shell scripts con `set -o pipefail` | 1/7 | **6/7** ✅ (`test.sh`, `test-boot.sh`, `makeusb.sh` añadidos) | 7/7 |
 | Documentación cubierta por ADR | 1 | **2** ✅ (sección 0 añadida) | Todas las decisiones estructurales |
 | Code smells activos (sin fix) | - | **0** ✅ (parseo HTML reemplazado por JSON en `872fff6`) | 0 |
 | Ramas sin return explícito | - | **0** ✅ (`connect_HD` block device corregido) | 0 |

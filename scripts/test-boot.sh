@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail
 
 # Migasfree Clone System - Boot Testing Script
 # This script launches QEMU using ONLY the target disk to verify it's bootable.

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail
 
 # Migasfree Clone System - USB Writer
 # This script writes the MCS bootable ISO image to a physical USB drive using dd.
