@@ -160,6 +160,7 @@ get_image() {
     rm -f "$TEMPORAL_FILE"
     local INDEX=1
     for file in "$IMAGES_DIR"/*; do
+        [ "$(basename "$file")" = "projects.json" ] && continue
         if [ -d "$file" ]; then
             NAME=$(basename "$file")
             DESC=$(jq -r --arg n "$NAME" '.[] | select(.name == $n) | .description // empty' "$_DESC_FILE" 2>/dev/null)
@@ -365,6 +366,7 @@ list_image() {
     local list=""
     local _DESC_FILE="$IMAGES_DIR/projects.json"
     for file in "$IMAGES_DIR"/*; do
+        [ "$(basename "$file")" = "projects.json" ] && continue
         if [ -d "$file" ]; then
             NAME=$(basename "$file")
             DESC=$(jq -r --arg n "$NAME" '.[] | select(.name == $n) | .description // empty' "$_DESC_FILE" 2>/dev/null)
