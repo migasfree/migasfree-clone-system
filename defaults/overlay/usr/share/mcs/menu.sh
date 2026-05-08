@@ -149,7 +149,7 @@ main_menu() {
 fetch_remote_projects() {
     local _URL="$1"
 
-    wget -q --timeout=15 -O - "${_URL}projects.json" 2>/dev/null | jq -r '.[]' 2>/dev/null | awk '{print NR " \"" $0 "\""}'
+    wget -q --timeout=15 -O - "${_URL}projects.json" 2>/dev/null | jq -r '.[] | select(.enabled != false) | .name' 2>/dev/null | awk '{print NR " \"" $0 "\""}'
 }
 
 
