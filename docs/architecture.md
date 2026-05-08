@@ -76,7 +76,7 @@ Project images are served via HTTP. Each project is a directory on the server co
 
 ### Directory Layout
 
-```
+```text
 http://<SERVER>/pool/mcs/
 ├── ubuntu-22-04/
 │   ├── partition.yml          # Partition scheme (mandatory)
