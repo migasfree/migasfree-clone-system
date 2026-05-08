@@ -602,7 +602,7 @@ Se implementó una suite completa de tests unitarios con bats-core, mocks de sis
 | Code smells activos | - | **0** ✅ (parseo HTML → JSON) | 0 |
 | Ramas sin return explícito | - | **0** ✅ | 0 |
 | Variables sin `local` (SH-004) | >4 | **0** ✅ | 0 |
-| Único pendiente: refactor `clone_HD` | - | **0** ✅ completado |
+| Único pendiente: refactor `clone_HD` | - | **0** ✅ completado | 0 |
 
 ---
 
