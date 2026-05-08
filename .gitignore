@@ -1,2 +1,3 @@
 artifacts/*
 docs/audit_strategic.md
+tests/fixtures/*.raw

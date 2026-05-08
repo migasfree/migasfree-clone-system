@@ -1,0 +1,10 @@
+{
+  "blockdevices": [
+    {"name": "sda", "type": "disk", "children": [
+      {"name": "sda1", "type": "part", "label": "EFI"},
+      {"name": "sda2", "type": "part", "label": ""},
+      {"name": "sda3", "type": "part", "label": "SYSTEM"},
+      {"name": "sda4", "type": "part", "label": "HOME"}
+    ]}
+  ]
+}

@@ -172,7 +172,8 @@ fi
 
 nbd-first-free() {
     local _DEVICE
-    for _DEVICE in /sys/class/block/nbd*
+    local _SYSFS="${MCS_SYSFS_PATH:-/sys/class/block}"
+    for _DEVICE in $_SYSFS/nbd*
     do
        if [ "$(cat $_DEVICE/size)" = "0" ]
        then
@@ -287,7 +288,7 @@ disk_by_label() {
 
 part_by_label() {
     local _LABEL="$1"
-    local _KNAME=$(lsblk -J -o KNAME,TYPE,LABEL 2>/dev/null | jq -r --arg l "$_LABEL" '.. | objects | select(.type == "part" and .label == $l) | .kname' | head -n 1)
+    local _KNAME=$(lsblk -J -o KNAME,TYPE,LABEL 2>/dev/null | jq -r --arg l "$_LABEL" '.. | objects | select(.type == "part" and .label == $l) | .kname' 2>/dev/null | head -n 1)
     if [ -z "$_KNAME" ] || [ "$_KNAME" = "null" ]; then
         return 1
     else

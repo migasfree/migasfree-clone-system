@@ -1,0 +1,23 @@
+partitions:
+  - number: 1
+    name: EFI
+    size: 512
+    filesystem: vfat
+    mount: /boot/efi
+    type: C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+  - number: 2
+    name: BIOS
+    size: 1
+    type: 21686148-6449-6E6F-744E-656564454649
+  - number: 3
+    name: SYSTEM
+    size: 20480
+    filesystem: ext4
+    mount: /
+    type: EBD0A0A2-B9E5-4433-87C0-68B6B72699C7
+  - number: 4
+    name: HOME
+    size: 0
+    filesystem: ext4
+    mount: /home
+    type: EBD0A0A2-B9E5-4433-87C0-68B6B72699C7

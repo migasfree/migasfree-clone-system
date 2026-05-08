@@ -1,0 +1,5 @@
+[
+  {"name": "ubuntu-22-04",  "enabled": true,  "description": "Ubuntu 22.04 LTS"},
+  {"name": "windows-10",    "enabled": true,  "description": "Windows 10 Enterprise"},
+  {"name": "centos-7",      "enabled": false, "description": "CentOS 7 (discontinued)"}
+]
