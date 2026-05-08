@@ -562,7 +562,7 @@ make_HD() {
     if [ -f "$_DEVICE" ]
     then
         echo "Error: file $_DEVICE exists." >&2
-        exit 1
+        return 1
     elif [ ! -b $_DEVICE ]
     then
         # lo creamos siempre en qcow2 porque falla mkfs.ext4 en vdi
