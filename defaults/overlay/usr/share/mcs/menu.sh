@@ -156,12 +156,18 @@ fetch_remote_projects() {
 get_image() {
     local submenu="$1"
     local title="$2"
+    local _DESC_FILE="$IMAGES_DIR/projects.json"
     rm -f "$TEMPORAL_FILE"
     local INDEX=1
     for file in "$IMAGES_DIR"/*; do
         if [ -d "$file" ]; then
             NAME=$(basename "$file")
-            echo "${INDEX} \"${NAME}\"" >> "$TEMPORAL_FILE"
+            DESC=$(jq -r --arg n "$NAME" '.[] | select(.name == $n) | .description // empty' "$_DESC_FILE" 2>/dev/null)
+            if [ -n "$DESC" ]; then
+                echo "${INDEX} \"${NAME} - ${DESC}\"" >> "$TEMPORAL_FILE"
+            else
+                echo "${INDEX} \"${NAME}\"" >> "$TEMPORAL_FILE"
+            fi
             INDEX=$((INDEX + 1))
         elif [ -f "$file" ]; then
             NAME=$(basename "$file")
@@ -357,9 +363,16 @@ network_clone_menu() {
 
 list_image() {
     local list=""
+    local _DESC_FILE="$IMAGES_DIR/projects.json"
     for file in "$IMAGES_DIR"/*; do
         if [ -d "$file" ]; then
-            list="${list}$(basename "$file")\n"
+            NAME=$(basename "$file")
+            DESC=$(jq -r --arg n "$NAME" '.[] | select(.name == $n) | .description // empty' "$_DESC_FILE" 2>/dev/null)
+            if [ -n "$DESC" ]; then
+                list="${list}${NAME} - ${DESC}\n"
+            else
+                list="${list}${NAME}\n"
+            fi
         elif [ -f "$file" ]; then
             list="${list}$(basename "$file") ($(numfmt --to=iec $(stat -c %s "$file")))\n"
         fi
@@ -454,6 +467,8 @@ download_image() {
         done
 
         if [ $_RET -eq 0 ]; then
+            # Save project index locally for description lookups
+            wget -q --timeout=15 -O "$IMAGES_DIR/projects.json" "${URL_PATH}projects.json" 2>/dev/null || :
             dialog --msgbox "Download project $FILE completed!" 10 50
         else
             dialog --msgbox "Download project $FILE failed!" 10 50
