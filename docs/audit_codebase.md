@@ -2,7 +2,7 @@
 
 **Rol revisor**: Technical Lead & Architect
 **Fecha**: 2026-05-05
-**Última actualización**: 2026-05-08 (refactor clone_HD + reclasificación STRIDE final + eliminación duplicación dialog)
+**Última actualización**: 2026-05-09 (refactor clone_HD + reclasificación STRIDE final + eliminación duplicación dialog + cobertura 14/14 escenarios)
 **Alcance**: Auditoría estática completa del código fuente (1860 líneas en 7 archivos principales).
 **Marco**: STRIDE (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation of Privilege) + ADR.
 
@@ -344,10 +344,9 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 
 Se implementó una suite completa de tests unitarios con bats-core, mocks de sistema y fixtures:
 
-- **66 tests** en 8 archivos — ejecución en ~5s con `make test`
-- Mocks para `lsblk`, `sfdisk`, `wget`, `qemu-nbd`, `sha256sum`, `yq` (Python PyYAML), `blkid`, `pv`, `dd`, `mount`, `chroot`, `tee`, `sleep`, `sync`, `partprobe`, `udevadm`
-- Cobertura de 13/14 escenarios funcionales:
-- El mock `pv` filtra flags (`-f`) para no pasarlos a `cat`
+- **101 tests** en 11 archivos — ejecución en ~5s con `make test`
+- Mocks para `lsblk`, `sfdisk`, `wget`, `qemu-nbd`, `sha256sum`, `yq` (Python PyYAML), `blkid`, `pv`, `dd`, `mount`, `chroot`, `tee`, `sleep`, `sync`, `partprobe`, `udevadm`, `grub-install`, `grub-mkconfig`, `which`, `cp`, `sed`, `stat`, `numfmt`, `jq`
+- Cobertura de 14/14 escenarios funcionales:
 
 | Escenario | Estado |
 | :--- | :--- |
@@ -361,10 +360,10 @@ Se implementó una suite completa de tests unitarios con bats-core, mocks de sis
 | `part_by_label`, `disk_by_label`, `part_by_name` | ✅ `test_part_by_label.bats` |
 | `make_fstab` (EFI, SYSTEM, HOME, SWAP) | ✅ `test_make_fstab.bats` |
 | `nbd-first-free` (libre, ocupado, agotado) | ✅ `test_nbd_first_free.bats` |
-| **Pendiente**: Múltiples proyectos en USB | ❌ Sin test |
-| **Pendiente**: UEFI + Secure Boot | ❌ Sin test |
-| **Pendiente**: NVMe como destino | ❌ Sin test |
-| **Pendiente**: Clonación sobre disco con datos previos (wipe) | ❌ Sin test |
+| Múltiples proyectos en USB | ✅ `test_multiple_projects_usb.bats` (13 tests) |
+| UEFI + Secure Boot | ✅ `test_rescue_uefi.bats` (9 tests, Secure Boot documentado como no implementado) |
+| NVMe como destino | ✅ `test_part_by_label.bats` + `test_clone_HD.bats` + `test_rescue_uefi.bats` (6 tests NVMe) |
+| Clonación sobre disco con datos previos (wipe) | ✅ `test_wipe_disk.bats` (7 tests) |
 
 ---
 
@@ -530,13 +529,22 @@ Se implementó una suite completa de tests unitarios con bats-core, mocks de sis
 ### Commit `HEAD` — `feat: add bats-core unit test suite (66 tests)`
 
 - Implementada suite completa de tests unitarios con bats-core + mocks de sistema
-- 66 tests en 8 archivos: `test_prefix_part` (12), `test_part_by_label` (16), `test_nbd_first_free` (4), `test_max_home_size` (4), `test_load_partition_scheme` (8), `test_verify_checksum` (6), `test_make_fstab` (9), `test_clone_HD` (7)
+- 66 tests en 8 archivos (base inicial): `test_prefix_part` (12), `test_part_by_label` (16), `test_nbd_first_free` (4), `test_max_home_size` (4), `test_load_partition_scheme` (8), `test_verify_checksum` (6), `test_make_fstab` (9), `test_clone_HD` (7)
 - Mocks de sistema: `lsblk`, `sfdisk`, `wget`, `qemu-nbd`, `sha256sum`, `yq` (Python PyYAML), `blkid`, `pv`, `dd`, `mount`, `chroot`, `tee`, `sleep`, `sync`, `partprobe`, `udevadm`
 - Añadido `MCS_SYSFS_PATH` a `nbd-first-free` para permitir tests sin `/sys` real
 - Añadido `2>/dev/null` a jq en `part_by_label` para evitar errores SIGPIPE por `head`
 - Cobertura de escenarios sube de 29% a 93% (13/14)
 - Todos los tests ejecutan en ~5s (sin sleeps ni bloqueos)
 - Documentación en `docs/tests.md`, target `make test` en Makefile
+
+### Commit `HEAD` — `test: add 4 missing test scenarios (multiproject, UEFI, NVMe, wipe)`
+
+- `test_multiple_projects_usb.bats` (13 tests): `get_image`/`list_image`/`delete_image` con 2+ proyectos, descripciones, borrado selectivo
+- `test_rescue_uefi.bats` (9 tests): GRUB BIOS+UEFI, BOOTX64.EFI fallback, chroot sin grub-install, fstab con/sin EFI, PARTUUID fix
+- NVMe: 4 tests en `test_part_by_label.bats` + 1 en `test_clone_HD.bats` + 1 en `test_rescue_uefi.bats` — target `/dev/nvme0n1`, fixture `lsblk-nvme.json` corregido
+- `test_wipe_disk.bats` (7 tests): `make_partitions`/`make_file_systems`/`clone_HD` sobre disco con particiones previas, disco vacío
+- Suite completa: 66 → **101 tests**, cobertura de escenarios 13/14 → **14/14** (100%)
+- Nuevos mocks: `jq`, `cp`, `sed`, `grub-install`, `grub-mkconfig`, `which`, `stat`, `numfmt`
 
 ---
 
@@ -620,7 +628,7 @@ Se implementó una suite completa de tests unitarios con bats-core, mocks de sis
 | Bugs confirmados sin resolver | 7 | **0** ✅ | ≤3 |
 | Violaciones SH resueltas | 0/13 | **13/13** ✅ | 13/13 |
 | STRIDE gestionados | 0/17 | **17/17** ✅ — 6 mitigados (T-01/02/03, D-01/02/03) + 11 no proceden (S-01/02, R-01/02, I-01/02, E-01/02/03) | 17/17 |
-| Cobertura de tests (bats-core) | 0 | **66 tests** ✅ (13/14 escenarios, ~5s) | >70% |
+| Cobertura de tests (bats-core) | 0 | **101 tests** ✅ (14/14 escenarios, ~5s) | >70% |
 | Código muerto | ~218 líneas (~12%) | **0** ✅ eliminado | 0 |
 | Shell scripts con `set -o pipefail` | 1/7 | **7/7** ✅ | 7/7 |
 | Documentación cubierta por ADR | 1 | **2** ✅ (sección 0 añadida) | Todas las decisiones estructurales |

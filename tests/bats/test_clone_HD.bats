@@ -60,3 +60,10 @@ teardown() {
     run clone_HD "http://server/pool/mcs/project/" "/dev/sda" "true"
     assert_success
 }
+
+@test "clone_HD: local directory clone succeeds with NVMe target" {
+    export MOCK_LSBLK_PARENT_JSON=$(cat "${FIXTURES_DIR}/lsblk-nvme.json")
+    export MOCK_LSBLK_PKNAME_JSON='{"blockdevices":[{"pkname":null,"type":"disk","label":null},{"pkname":"nvme0n1","type":"part","label":"SYSTEM"},{"pkname":"nvme0n1","type":"part","label":"HOME"}]}'
+    run clone_HD "${FIXTURES_DIR}" "/dev/nvme0n1"
+    assert_success
+}

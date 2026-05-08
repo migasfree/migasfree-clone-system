@@ -107,3 +107,30 @@ teardown() {
     run part_label "/dev/sda3"
     [[ "$output" == "SYSTEM" ]]
 }
+
+
+@test "part_by_label_on_device: finds SYSTEM on NVMe /dev/nvme0n1" {
+    export MOCK_LSBLK_PARENT_JSON=$(cat "${FIXTURES_DIR}/lsblk-nvme.json")
+    run part_by_label_on_device "/dev/nvme0n1" "SYSTEM"
+    assert_success
+    [[ "$output" == "/dev/nvme0n1p3" ]]
+}
+
+@test "part_by_label: finds partition by label on NVMe" {
+    export MOCK_LSBLK_KNAME_JSON='{"blockdevices":[{"kname":null,"type":"disk","label":null},{"kname":"nvme0n1p3","type":"part","label":"SYSTEM"},{"kname":"nvme0n1p4","type":"part","label":"HOME"}]}'
+    run part_by_label "SYSTEM"
+    assert_output_contains "/dev/nvme0n1p3"
+}
+
+@test "dev_by_part: extracts NVMe disk from partition" {
+    export MOCK_LSBLK_REVERSE_JSON='{"blockdevices":[{"kname":"nvme0n1p3","type":"part","children":[{"kname":"nvme0n1","type":"disk"}]}]}'
+    run dev_by_part "/dev/nvme0n1p3"
+    [[ "$output" == "/dev/nvme0n1" ]]
+}
+
+@test "part_by_name: with NVMe device uses nvme partition names" {
+    _JSON_PARTITIONS=$(yq -o json '.partitions' "${FIXTURES_DIR}/partition.yml")
+    export MOCK_LSBLK_PARENT_JSON=$(cat "${FIXTURES_DIR}/lsblk-nvme.json")
+    run part_by_name "/dev/nvme0n1" "SYSTEM"
+    [[ "$output" == "/dev/nvme0n1p3" ]]
+}

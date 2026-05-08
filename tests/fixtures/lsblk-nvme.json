@@ -1,10 +1,10 @@
 {
   "blockdevices": [
-    {"name": "nvme0n1", "type": "disk", "children": [
-      {"name": "nvme0n1p1", "type": "part", "label": "EFI"},
-      {"name": "nvme0n1p2", "type": "part", "label": ""},
-      {"name": "nvme0n1p3", "type": "part", "label": "SYSTEM"},
-      {"name": "nvme0n1p4", "type": "part", "label": "HOME"}
+    {"name": "/dev/nvme0n1", "type": "disk", "children": [
+      {"name": "/dev/nvme0n1p1", "type": "part", "label": "EFI"},
+      {"name": "/dev/nvme0n1p2", "type": "part", "label": ""},
+      {"name": "/dev/nvme0n1p3", "type": "part", "label": "SYSTEM"},
+      {"name": "/dev/nvme0n1p4", "type": "part", "label": "HOME"}
     ]}
   ]
 }

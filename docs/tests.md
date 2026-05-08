@@ -63,29 +63,32 @@ bats --formatter tap tests/bats/
 
 ```text
 tests/
-├── bats/                          # Test files (.bats)
-│   ├── test_prefix_part.bats      # prefix_part() function
-│   ├── test_part_by_label.bats    # Label/disk queries
-│   ├── test_nbd_first_free.bats   # NBD device allocation
-│   ├── test_max_home_size.bats    # HOME size calculation
+├── bats/                              # Test files (.bats)
+│   ├── test_prefix_part.bats          # prefix_part() function
+│   ├── test_part_by_label.bats        # Label/disk queries (SATA + NVMe)
+│   ├── test_nbd_first_free.bats       # NBD device allocation
+│   ├── test_max_home_size.bats        # HOME size calculation
 │   ├── test_load_partition_scheme.bats  # partition.yml loading
-│   ├── test_verify_checksum.bats  # SHA-256 verification
-│   ├── test_make_fstab.bats       # fstab generation
-│   └── test_clone_HD.bats         # clone_HD full-flow tests
+│   ├── test_verify_checksum.bats      # SHA-256 verification
+│   ├── test_make_fstab.bats           # fstab generation
+│   ├── test_clone_HD.bats             # clone_HD full-flow (SATA + NVMe)
+│   ├── test_multiple_projects_usb.bats  # Multi-project USB listing/deletion
+│   ├── test_rescue_uefi.bats          # UEFI GRUB install, BOOTX64.EFI, PARTUUID
+│   └── test_wipe_disk.bats            # Cloning on pre-partitioned disks
 ├── helpers/
-│   ├── mocks.bash                 # Mock system binaries (lsblk, sfdisk, wget, etc.)
-│   └── assert.bash                # Custom assertions
+│   ├── mocks.bash                     # Mock system binaries (lsblk, sfdisk, wget, etc.)
+│   └── assert.bash                    # Custom assertions
 └── fixtures/
-    ├── partition.yml              # Standard partition scheme
-    ├── partition_minimal.yml      # Scheme without HOME
-    ├── partition_invalid.yml      # Invalid YAML
-    ├── checksums.sha256           # Checksums file
-    ├── projects.json              # Project index
-    ├── SYSTEM.raw                 # 1MB dummy image
-    ├── HOME.raw                   # 1MB dummy image
-    ├── lsblk-sda.json             # Mock lsblk output (SATA)
-    ├── lsblk-nvme.json            # Mock lsblk output (NVMe)
-    └── sfdisk-sda.json            # Mock sfdisk output
+    ├── partition.yml                  # Standard partition scheme
+    ├── partition_minimal.yml          # Scheme without HOME
+    ├── partition_invalid.yml          # Invalid YAML
+    ├── checksums.sha256               # Checksums file
+    ├── projects.json                  # Project index
+    ├── SYSTEM.raw                     # 1MB dummy image
+    ├── HOME.raw                       # 1MB dummy image
+    ├── lsblk-sda.json                 # Mock lsblk output (SATA)
+    ├── lsblk-nvme.json                # Mock lsblk output (NVMe)
+    └── sfdisk-sda.json                # Mock sfdisk output
 ```
 
 ## How Tests Work
@@ -135,6 +138,9 @@ setup() {
 | `MOCK_WGET_DIR` | Directory for `wget` to serve files from | `load_partition_scheme`, `clone_HD` |
 | `MOCK_NBD_DEVICE` | Device path returned by `qemu-nbd` | `connect_HD` |
 | `MOCK_NBD_COUNT` | Number of NBD devices to simulate | `nbd-first-free` |
+| `MOCK_PART_EFI` | EFI partition path for rescue tests | `test_rescue_uefi.bats` |
+| `WHICH_GRUB_INSTALL` | Exit code for `which grub-install` mock | `test_rescue_uefi.bats` |
+| `GRUB_INSTALL_LOG` | Log file capturing `grub-install` calls | `test_rescue_uefi.bats` |
 
 ### Assertions
 
