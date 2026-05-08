@@ -415,6 +415,9 @@ make_fstab() {
                 echo "PARTUUID=$(uuid_by_id ${_DEVICE} ${_NUMBER}) $_MOUNT $_FILESYSTEM defaults 0 2"
                 ;;
             *)
+                if [ -n "$_MOUNT" ]; then
+                    mcs_log "  [WARNING] Unknown partition '$_NAME' with mount '$_MOUNT' — no fstab entry"
+                fi
                 ;;
         esac
     done
