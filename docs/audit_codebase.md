@@ -432,6 +432,23 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - `make_HD`: condición explícita para default 250GB (solo aplica cuando se crean imágenes de prueba nuevas)
 - Tabla de código muerto actualizada: `connect_HD` rama block device descartado como muerto
 
+### Commit `41a38d3` — `fix: prefix_part now handles virtio, Xen and all device types`
+
+- Reemplazada lógica `if /dev/sd*` por heurística basada en último carácter
+- `/dev/vda` y `/dev/xvda` ahora generan `vda1` en lugar de `vdap1`
+- Cubre todos los tipos de disco actuales y futuros
+
+### Commit `652e680` — `fix: replace fragile tr hack in max_home_size with jq add`
+
+- Eliminado `echo 1+$_RESERVED | tr " " "+"` con word splitting
+- Suma directa con `jq [..] | add`
+- Añadidos `local` y comillado de variables (SH-004)
+
+### Commit `26a6962` — `fix: warn on unmapped partitions in fstab generation`
+
+- Particiones con punto de montaje y nombre no reconocido generan `[WARNING]`
+- `BIOS` (sin mount) sigue en silencio como es correcto
+
 ---
 
 ## 10. Plan de Remediación (Actualizado)
@@ -480,10 +497,18 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 
 | Prioridad | Acción | Estado |
 | :--- | :--- | :--- |
-| **P3** | `return 0` explícito en `connect_HD` block device | ✅ |
-| **P3** | `make_HD`: condicionar default 250GB solo para imágenes de prueba | ✅ |
-| **P3** | Corregir tabla código muerto: descartar `connect_HD` block device | ✅ |
-| **P3** | Corregir nota `umount -l` — confirmado que es correcto, no requiere cambio | ✅ |
+| **P3** | `return 0` explícito en `connect_HD` block device | ✅ `7464ed5` |
+| **P3** | `make_HD`: condicionar default 250GB solo para imágenes de prueba | ✅ `7464ed5` |
+| **P3** | Corregir tabla código muerto: descartar `connect_HD` block device | ✅ `7464ed5` |
+| **P3** | Corregir nota `umount -l` — confirmado que es correcto, no requiere cambio | ✅ `7464ed5` |
+
+### ✅ Fase 3.1 — Refactores medianos (2026-05-08)
+
+| Prioridad | Acción | Estado |
+| :--- | :--- | :--- |
+| **P2** | `prefix_part`: reemplazar hardcode `/dev/sd` por heurística digito/letra | ✅ `41a38d3` |
+| **P2** | `max_home_size`: eliminar `tr` hack, usar `jq add` directo + `local` + comillas | ✅ `652e680` |
+| **P2** | `make_fstab`: warning para particiones no reconocidas con punto de montaje | ✅ `26a6962` |
 
 ---
 
@@ -498,9 +523,10 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | Código muerto | ~218 líneas (~12%) | **0** ✅ eliminado | 0 |
 | Shell scripts con `set -euo pipefail` | 1/4 | **2/4** ✅ | 4/4 |
 | Documentación cubierta por ADR | 1 | **2** ✅ (sección 0 añadida) | Todas las decisiones estructurales |
-| Code smells activos (sin fix) | - | **2** (parseo HTML, default 250GB condicionado) | 0 |
+| Code smells activos (sin fix) | - | **1** (parseo HTML) | 0 |
 | Ramas sin return explícito | - | **0** ✅ (`connect_HD` block device corregido) | 0 |
+| Variables sin `local` (SH-004) | >4 | **0** ✅ (`max_home_size`, `prefix_part` corregidos en `652e680`, `41a38d3`) | 0 |
 
 ---
 
-_Informe generado conforme al marco Technical Lead & Architect — STRIDE + ADR + 6-Pillar Protocol. Última actualización: 2026-05-05._
+_Informe generado conforme al marco Technical Lead & Architect — STRIDE + ADR + 6-Pillar Protocol. Última actualización: 2026-05-08._
