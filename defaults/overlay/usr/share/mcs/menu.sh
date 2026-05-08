@@ -146,6 +146,21 @@ main_menu() {
 # CLONE
 # =====
 
+fetch_remote_projects() {
+    local _URL="$1"
+    local _JSON
+
+    _JSON=$(wget -q --timeout=15 -O - "${_URL}projects.json" 2>/dev/null)
+    if _PROJECTS=$(echo "$_JSON" | jq -r '.[]' 2>/dev/null) && [ -n "$_PROJECTS" ]; then
+        echo "$_PROJECTS" | awk '{print NR " \"" $0 "\""}'
+        return 0
+    fi
+
+    mcs_log "  [INFO] projects.json not available at ${_URL}, falling back to HTML parsing"
+    wget -q --timeout=15 -O - "${_URL}" 2>/dev/null | grep -o 'href="[^"]*"' | grep -v 'href="\.\.\/"' | grep "/\"" | cut -d '"' -f 2 | sed 's/\/$//' | awk '{print NR " \"" $0 "\""}'
+}
+
+
 get_image() {
     local submenu="$1"
     local title="$2"
@@ -277,8 +292,7 @@ network_clone_menu() {
 
     URL_PATH="http://$SERVER_URL/pool/mcs/"
     
-    # Fetch remote image list (including directories for Turbo Mode)
-    /usr/bin/wget -q --timeout=15 -O - "${URL_PATH}" | grep -o 'href="[^"]*"' | grep -v 'href="\.\.\/"' | grep "/\"" | cut -d '"' -f 2 | sed 's/\/$//' | nl -w1 -s' ' | sed 's/\(.*\) \(.*\)/\1 "\2"/' > $TEMPORAL_FILE
+    fetch_remote_projects "${URL_PATH}" > "$TEMPORAL_FILE"
 
     if [ ! -s "$TEMPORAL_FILE" ]; then
         show_msg "Network Clone" "Error" "No images found on the server:\n$URL_PATH"
@@ -372,10 +386,7 @@ download_image() {
 
     URL_PATH="http://$SERVER_URL/pool/mcs/"
 
-    echo "" > $TEMPORAL_FILE
-
-    # Fetch remote project list (directories)
-    wget -q --timeout=15 -O - "${URL_PATH}" | grep -o 'href="[^"]*"' | grep -v 'href="\.\.\/"' | grep "/\"" | cut -d '"' -f 2 | sed 's/\/$//' | nl -w1 -s' ' | sed 's/\(.*\) \(.*\)/\1 "\2"/' > $TEMPORAL_FILE
+    fetch_remote_projects "${URL_PATH}" > "$TEMPORAL_FILE"
 
     if [ ! -s "$TEMPORAL_FILE" ]; then
         show_msg "Local Images" "Download" "No projects found on the server:\n$URL_PATH\n\nPlease check your Server URL or repository."
