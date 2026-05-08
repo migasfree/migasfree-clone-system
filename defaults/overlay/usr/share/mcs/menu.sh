@@ -148,16 +148,8 @@ main_menu() {
 
 fetch_remote_projects() {
     local _URL="$1"
-    local _JSON
 
-    _JSON=$(wget -q --timeout=15 -O - "${_URL}projects.json" 2>/dev/null)
-    if _PROJECTS=$(echo "$_JSON" | jq -r '.[]' 2>/dev/null) && [ -n "$_PROJECTS" ]; then
-        echo "$_PROJECTS" | awk '{print NR " \"" $0 "\""}'
-        return 0
-    fi
-
-    mcs_log "  [INFO] projects.json not available at ${_URL}, falling back to HTML parsing"
-    wget -q --timeout=15 -O - "${_URL}" 2>/dev/null | grep -o 'href="[^"]*"' | grep -v 'href="\.\.\/"' | grep "/\"" | cut -d '"' -f 2 | sed 's/\/$//' | awk '{print NR " \"" $0 "\""}'
+    wget -q --timeout=15 -O - "${_URL}projects.json" 2>/dev/null | jq -r '.[]' 2>/dev/null | awk '{print NR " \"" $0 "\""}'
 }
 
 
