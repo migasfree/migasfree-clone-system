@@ -19,23 +19,23 @@ sudo apt install qemu-system-x86 qemu-utils ovmf
 sudo pacman -S qemu-desktop ovmf
 ```
 
-## 🚀 Recommended Method: Using the `test` script
+## 🚀 Recommended Method: Using the `qemu` target
 
 We provide a built-in script that handles the creation of a temporary testing image and launches QEMU with the correct parameters.
 
-### 1. Run the test command
+### 1. Run the QEMU command
 
 Simply run the make command from the root of the repository. You can pass additional arguments to the underlying script using the `ARGS` variable.
 
 ```bash
-# Standard test
-make test
+# Standard QEMU test
+make qemu
 
 # Test with custom RAM and UEFI enabled
-make test ARGS="-m 4G -u"
+make qemu ARGS="-m 4G -u"
 
 # Test using a physical USB drive
-make test-usb DRIVE=/dev/sda
+make qemu-usb DRIVE=/dev/sda
 ```
 
 **Available script options (via `ARGS="..."`):**
@@ -44,7 +44,7 @@ make test-usb DRIVE=/dev/sda
 - `-s <size>`: Disk size for testing (e.g., `20G`).
 - `-u`: Enable UEFI mode.
 - `-n <name>`: Custom name for the testing image.
-- `-d <device>`: Use a physical device (prefer `make test-usb` for this).
+- `-d <device>`: Use a physical device (prefer `make qemu-usb` for this).
 
 The script will:
 
@@ -66,10 +66,10 @@ OVMF_PATH="/usr/share/ovmf/OVMF.fd"
 
 ### 3. Verifying the Clone (Boot Test)
 
-Once you have performed a clone inside the VM, you can verify that the target disk is actually bootable using the **`make test-boot`** command:
+Once you have performed a clone inside the VM, you can verify that the target disk is actually bootable using the **`make qemu-boot`** command:
 
 ```bash
-make test-boot
+make qemu-boot
 ```
 
 This script will:
@@ -98,7 +98,7 @@ TEST_TARGET_SIZE="30G"
 If you want to test the cloning process directly on a physical disk (be careful!):
 
 ```bash
-make test-usb DRIVE=/dev/sdX
+make qemu-usb DRIVE=/dev/sdX
 ```
 
 This will launch QEMU using `/dev/sdX` as the primary boot drive and the virtual `target-hd.qcow2` as the second drive.

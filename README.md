@@ -47,7 +47,7 @@ The resulting image will be located at `artifacts/mcs-<version>.iso`.
 Safely boot the generated ISO in a virtual machine to verify it works:
 
 ```bash
-make test
+make qemu
 ```
 
 ### 3. Deploying to a Physical USB
@@ -55,7 +55,7 @@ make test
 To write the ISO to a physical USB drive, use our interactive script which provides safety checks and prevents accidental data loss:
 
 ```bash
-make usb
+make flash
 ```
 
 #### 📌 First Boot Expansion

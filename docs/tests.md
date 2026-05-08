@@ -38,7 +38,7 @@ apk add bats jq yq
 ### All tests
 
 ```bash
-make test-unit
+make test
 ```
 
 ### A specific test file

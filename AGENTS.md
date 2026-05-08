@@ -17,9 +17,9 @@ MCS is a lightweight, Alpine Linux-based imaging and deployment utility. It is d
 ## 📁 Key File Map
 
 - `/scripts/build.sh`: Orchestrates the image creation on the host.
-- `/scripts/test.sh`: QEMU launch script for verifying the build.
-- `/scripts/test-boot.sh`: QEMU script to verify if the cloned disk is bootable.
-- `/scripts/makeusb.sh`: Script to create the physical bootable USB drive.
+- `/scripts/qemu.sh`: QEMU launch script for verifying the build.
+- `/scripts/qemu-boot.sh`: QEMU script to verify if the cloned disk is bootable.
+- `/scripts/flash.sh`: Script to create the physical bootable USB drive.
 - `/defaults/overlay/usr/share/mcs/menu.sh`: The main TUI logic and entry point.
 - `/defaults/overlay/usr/share/mcs/functions`: Core library for disk management, partitioning, and cloning.
 - `/defaults/apks/packages`: List of Alpine packages included in the image.
@@ -54,8 +54,9 @@ MCS expects a specific partition scheme on the target disk (standard Migasfree/V
 ## 🛠️ Development & Testing
 
 - **Building**: Use `make build`. It creates `artifacts/mcs-<version>.iso`.
-- **Testing**: Use `make test`. It simulates a real environment with a target disk `artifacts/target-hd.qcow2`.
-- **Verification**: After cloning inside the test VM, use `make test-boot` to verify the target disk's bootloader.
+- **Testing**: Use `make qemu`. It simulates a real environment with a target disk `artifacts/target-hd.qcow2`.
+- **Unit tests**: Use `make test`. Runs the bats-core test suite (66 tests, ~5s).
+- **Verification**: After cloning inside the test VM, use `make qemu-boot` to verify the target disk's bootloader.
 
 ## ⚠️ Critical Constraints
 

@@ -41,9 +41,9 @@ El código de MCS está estructurado en 7 archivos con ~1860 líneas totales:
 | `functions` | 850 | Librería core (disk, clone, rescue) |
 | `menu.sh` | 508 | TUI via `dialog` |
 | `build.sh` | 70 | Orquestación del build (host) |
-| `test.sh` | 117 | Script de testing QEMU |
-| `test-boot.sh` | 47 | Verificación de arranque post-clon |
-| `makeusb.sh` | 146 | Escritura de USB físico |
+| `qemu.sh` | 117 | Script de testing QEMU |
+| `qemu-boot.sh` | 47 | Verificación de arranque post-clon |
+| `flash.sh` | 146 | Escritura de USB físico |
 | `makeimg` | 122 | Build dentro del contenedor Docker |
 
 Se identificaron **7 bugs**, **13 violaciones de buenas prácticas shell**, **17 riesgos STRIDE** y **~120 líneas de código muerto**.
@@ -159,11 +159,11 @@ timeout=$((timeout - 1)) # ← después
 
 #### 🟡 BUG-005 — `eval $QEMU_CMD` sin comillas dobles ✅ **RESUELTO** (`b8ef0c2`)
 
-**Ubicación**: `test-boot.sh:47`
+**Ubicación**: `qemu-boot.sh:47`
 
 ```bash
-eval $QEMU_CMD      # test-boot.sh — antes
-eval "$QEMU_CMD"    # test-boot.sh — después
+eval $QEMU_CMD      # qemu-boot.sh — antes
+eval "$QEMU_CMD"    # qemu-boot.sh — después
 ```
 
 **Severidad**: Baja
@@ -207,7 +207,7 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 
 | ID | Violación | Ubicación | Fix | Estado |
 | :--- | :--- | :--- | :--- | :--- |
-| **SH-001** | `set -o pipefail` ausente en varios scripts | `menu.sh:1`, `build.sh:1`, `test.sh:1`, `test-boot.sh:1`, `makeusb.sh:1`, `makeimg:1` | Añadir `set -o pipefail` | ✅ **RESUELTO** (`a6f6093`, `6f1ddfa`) |
+| **SH-001** | `set -o pipefail` ausente en varios scripts | `menu.sh:1`, `build.sh:1`, `qemu.sh:1`, `qemu-boot.sh:1`, `flash.sh:1`, `makeimg:1` | Añadir `set -o pipefail` | ✅ **RESUELTO** (`a6f6093`, `6f1ddfa`) |
 | **SH-002** | `IFS=$'\n'` no restaurado tras error | `functions:375,424` | Usar subshell o `trap` para restaurar IFS | ✅ **RESUELTO** (`ed02668`) |
 | **SH-003** | `function` keyword innecesario (no POSIX) | `functions:10,16,65,77,...` | Usar `funcname() { }` | ✅ **RESUELTO** (`ae30425`) |
 | **SH-004** | Variables no locales sin `local` | `functions:158,172` (`_KNAME`) | Declarar con `local` | ✅ **RESUELTO** (`ed02668`) |
@@ -336,15 +336,15 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 ### Estado actual
 
 - **Build test**: ✅ `make build` — verifica que el ISO se genera correctamente.
-- **Boot test**: ✅ `make test` — QEMU con BIOS y opcionalmente UEFI.
-- **Post-clone boot test**: ✅ `make test-boot` — verifica que el disco clonado es booteable.
-- **USB deployment test**: ✅ `make test-usb DRIVE=/dev/sdX`.
+- **Boot test**: ✅ `make qemu` — QEMU con BIOS y opcionalmente UEFI.
+- **Post-clone boot test**: ✅ `make qemu-boot` — verifica que el disco clonado es booteable.
+- **USB deployment test**: ✅ `make qemu-usb DRIVE=/dev/sdX`.
 
 ### Tests unitarios (nuevo — bats-core)
 
 Se implementó una suite completa de tests unitarios con bats-core, mocks de sistema y fixtures:
 
-- **66 tests** en 8 archivos — ejecución en ~5s con `make test-unit`
+- **66 tests** en 8 archivos — ejecución en ~5s con `make test`
 - Mocks para `lsblk`, `sfdisk`, `wget`, `qemu-nbd`, `sha256sum`, `yq` (Python PyYAML), `blkid`, `pv`, `dd`, `mount`, `chroot`, `tee`, `sleep`, `sync`, `partprobe`, `udevadm`
 - Cobertura de 13/14 escenarios funcionales:
 - El mock `pv` filtra flags (`-f`) para no pasarlos a `cat`
@@ -529,7 +529,7 @@ Se implementó una suite completa de tests unitarios con bats-core, mocks de sis
 - Añadido `2>/dev/null` a jq en `part_by_label` para evitar errores SIGPIPE por `head`
 - Cobertura de escenarios sube de 29% a 93% (13/14)
 - Todos los tests ejecutan en ~5s (sin sleeps ni bloqueos)
-- Documentación en `docs/tests.md`, target `make test-unit` en Makefile
+- Documentación en `docs/tests.md`, target `make test` en Makefile
 
 ---
 
