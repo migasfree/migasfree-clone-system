@@ -320,12 +320,13 @@ uuid_by_id() {
 
 prefix_part() {
     local _DEVICE="$1"
-    local _PREFIX="p"
-    if [ ${_DEVICE:0:7} = "/dev/sd" ]
-    then
-      _PREFIX=""
-    fi
-    echo "$_PREFIX"
+    local _BASE="${_DEVICE##*/}"
+    # Devices ending with a digit use 'p' (nvme0n1, nbd0, mmcblk0, loop0)
+    # Devices ending with a letter do not (sda, vda, xvda, hda)
+    case "$_BASE" in
+        *[0-9]) echo "p" ;;
+        *)      echo ""  ;;
+    esac
 }
 
 
