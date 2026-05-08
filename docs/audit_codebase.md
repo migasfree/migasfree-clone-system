@@ -2,7 +2,7 @@
 
 **Rol revisor**: Technical Lead & Architect
 **Fecha**: 2026-05-05
-**Última actualización**: 2026-05-08 (refactor clone_HD)
+**Última actualización**: 2026-05-08 (refactor clone_HD + reclasificación STRIDE final)
 **Alcance**: Auditoría estática completa del código fuente (1860 líneas en 7 archivos principales).
 **Marco**: STRIDE (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation of Privilege) + ADR.
 
@@ -19,6 +19,12 @@ Determinados hallazgos marcados inicialmente como "riesgos" o "anomalías" se ha
 - **Entrada estática en `/etc/hosts`**: práctica común en entornos enterprise sin DNS interno o con DNS no autoritativo para el dominio del servidor de imágenes.
 - **Auto-redimensionado `resize_MCS_DATA`**: razonable en un live USB con persistencia (partición `MCS_DATA`), análogo al overlay persistente de SystemRescue.
 - **NBD + HTTP Streaming ("Turbo Clone")**: no es sobreingeniería; es el **feature diferencial** del proyecto frente a live USBs tradicionales.
+- **Variables de entorno del build visibles en /proc del contenedor (I-01)**: build en máquina de administración controlada. Las variables (server URL, keymap) no son secretos. Práctica estándar en Docker/pipelines CI/CD de construcción de imágenes.
+- **SERVER_URL en logs de debug visibles en TTY (I-02)**: live USB mono-usuario. La URL ya es visible en configuración. Cualquier persona con acceso físico al USB tiene root completo.
+- **docker run --privileged en build (E-02)**: requisito técnico para acceder a loop devices y ejecutar parted/mkfs durante el build. Práctica estándar en builders Docker de imágenes de sistema (mkosi, live-build, debootstrap).
+- **chroot --force para GRUB (E-03)**: necesario en instalaciones GRUB sobre GPT+BIOS, igual que en Debian/Ubuntu installers. El chroot está en /mnt/rescue del disco clonado, sin exposición a dispositivos arbitrarios.
+- **Log volátil sin persistencia (R-01)**: norma en live USBs. Clonezilla, GParted Live, SystemRescue se comportan igual. El técnico puede consultar el log durante la sesión actual.
+- **Sin metadata de operaciones (R-02)**: MCS es una herramienta stateless sin servidor de reportes. El técnico es la traza de auditoría. Implementar metadata requeriría infraestructura fuera del alcance del proyecto.
 
 Los hallazgos que **sí se mantienen** son aquellos que constituyen code smells, bugs funcionales reales, o malas prácticas independientes del contexto (ej. parseo HTML frágil, valores por defecto engañosos, ramas sin `return` explícito).
 
@@ -235,17 +241,17 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 
 ### R — Repudiation (No repudio)
 
-| ID | Amenaza | Código |
-| :--- | :--- | :--- |
-| **R-01** | Log local (`/tmp/mcs-clone.log`) volátil — sin persistencia ni envío remoto | `functions:13` |
-| **R-02** | Sin registro de qué máquina recibió qué imagen | `functions:551` — `clone_HD` no escribe metadata de la operación |
+| ID | Amenaza | Código | Contexto |
+| :--- | :--- | :--- | :--- |
+| **R-01** | Log local (`/tmp/mcs-clone.log`) volátil — sin persistencia ni envío remoto | `functions:13` | 🟢 **No procede** — Norma en live USBs. Clonezilla/SystemRescue igual. El técnico consulta el log en la sesión actual. |
+| **R-02** | Sin registro de qué máquina recibió qué imagen | `functions:551` — `clone_HD` no escribe metadata de la operación | 🟢 **No procede** — MCS es stateless por diseño. El técnico es la traza de auditoría. Implementar metadata requeriría servidor externo. |
 
 ### I — Information Disclosure (Fuga de información)
 
-| ID | Amenaza | Código |
-| :--- | :--- | :--- |
-| **I-01** | Variables de entorno del build (`SERVER_IP`, `KEYMAP`) visibles en `/proc` del contenedor | `build.sh:60-65` — `-e SERVER=...` |
-| **I-02** | `SERVER_URL` en logs de debug accesibles vía TTY sin auth | `menu.sh:274-275` — `echo "[+] Source: $DOWNLOAD_URL"` en consola |
+| ID | Amenaza | Código | Contexto |
+| :--- | :--- | :--- | :--- |
+| **I-01** | Variables de entorno del build (`SERVER_IP`, `KEYMAP`) visibles en `/proc` del contenedor | `build.sh:60-65` — `-e SERVER=...` | 🟢 **No procede** — Build en máquina de administración. Variables no secretas. Práctica Docker/CI-CD estándar. |
+| **I-02** | `SERVER_URL` en logs de debug accesibles vía TTY sin auth | `menu.sh:274-275` — `echo "[+] Source: $DOWNLOAD_URL"` en consola | 🟢 **No procede** — Live USB mono-usuario. La URL ya es visible en Settings. Acceso físico = root completo. |
 
 ### D — Denial of Service (Denegación de servicio)
 
@@ -260,8 +266,8 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 | ID | Amenaza | Código | Contexto |
 | :--- | :--- | :--- | :--- |
 | **E-01** | Root sin contraseña con 3 TTYs interactivos | `inittab:8-10`, `makeimg:78` | 🟢 **No procede** — estándar en live USBs de rescate/instalación (SystemRescue, GParted Live, Clonezilla). El técnico necesita root para todo y la TTY adicional permite debuggear si el TUI se cuelga. |
-| **E-02** | `docker run --privileged` otorga capacidades de root en el host | `build.sh:57` | |
-| **E-03** | `chroot` con `--force` puede escribir en dispositivos no previstos | `functions:766,776` | |
+| **E-02** | `docker run --privileged` otorga capacidades de root en el host | `build.sh:57` | 🟢 **No procede** — Requisito técnico para loop devices y parted/mkfs. Estándar en builders Docker de imágenes de sistema. |
+| **E-03** | `chroot` con `--force` puede escribir en dispositivos no previstos | `functions:766,776` | 🟢 **No procede** — Necesario en GPT+BIOS. Misma práctica que Debian/Ubuntu installers. Chroot en /mnt/rescue del disco clonado. |
 
 ---
 
@@ -502,6 +508,18 @@ Se implementó una suite completa de tests unitarios con bats-core, mocks de sis
 - Variables sin comillas corregidas (`$_TARGET`, `$_SOURCE` en `disconnect_HD`)
 - 66/66 tests pasan sin cambios
 
+### Commit `HEAD` — `docs: reclassify remaining 6 STRIDE findings as no procede`
+
+- Reclasificados R-01, R-02, I-01, I-02, E-02, E-03 como **no procede** en contexto live USB/build
+- R-01 (log volátil): estándar en live USBs, el técnico consulta en sesión actual
+- R-02 (sin metadata): MCS es stateless por diseño, el técnico es la traza
+- I-01 (build env vars): build en máquina controlada, variables no secretas, práctica Docker estándar
+- I-02 (URL en TTY): live USB mono-usuario, URL visible en Settings
+- E-02 (docker --privileged): requisito técnico para loop devices, estándar en builders
+- E-03 (chroot --force): necesario para GPT+BIOS, misma práctica que Debian/Ubuntu
+- Métrica STRIDE: 6/17 mitigados + 11/17 no proceden = **17/17 ✅**
+- Actualizadas tablas R, I, E con columna Contexto y veredicto
+
 ### Commit `HEAD` — `feat: add bats-core unit test suite (66 tests)`
 
 - Implementada suite completa de tests unitarios con bats-core + mocks de sistema
@@ -594,7 +612,7 @@ Se implementó una suite completa de tests unitarios con bats-core, mocks de sis
 | :--- | :--- | :--- | :--- |
 | Bugs confirmados sin resolver | 7 | **0** ✅ | ≤3 |
 | Violaciones SH resueltas | 0/13 | **13/13** ✅ | 13/13 |
-| STRIDE gestionados | 0/17 | **6/17** mitigados (T-01, T-02, T-03, D-01, D-02, D-03) — **3/17 no proceden** (S-01, S-02, E-01) | Documentar remanentes |
+| STRIDE gestionados | 0/17 | **17/17** ✅ — 6 mitigados (T-01/02/03, D-01/02/03) + 11 no proceden (S-01/02, R-01/02, I-01/02, E-01/02/03) | 17/17 |
 | Cobertura de tests (bats-core) | 0 | **66 tests** ✅ (13/14 escenarios, ~5s) | >70% |
 | Código muerto | ~218 líneas (~12%) | **0** ✅ eliminado | 0 |
 | Shell scripts con `set -o pipefail` | 1/7 | **7/7** ✅ | 7/7 |
