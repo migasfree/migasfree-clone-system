@@ -533,7 +533,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | **P2** | `prefix_part`: reemplazar hardcode `/dev/sd` por heurística digito/letra | ✅ `41a38d3` |
 | **P2** | `max_home_size`: eliminar `tr` hack, usar `jq add` directo + `local` + comillas | ✅ `652e680` |
 | **P2** | `make_fstab`: warning para particiones no reconocidas con punto de montaje | ✅ `26a6962` |
-| **P3** | `sync_parts()` helper: eliminar duplicación `partprobe; sync; sleep 2` | ✅ `ee37131` |
+| **P3** | `sync_parts()` helper: eliminar duplicación `partprobe; sync; sleep 2` | ✅ `1b217f0` |
 
 ### ✅ Fase 3.2 — projects.json y descripciones (2026-05-08)
 
