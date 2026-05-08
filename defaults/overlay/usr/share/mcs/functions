@@ -483,20 +483,16 @@ get_megas_device()
 
 
 max_home_size() {
-    _DEVICE="$1"
+    local _DEVICE="$1"
+    local _RESERVED=$(echo "$_JSON_PARTITIONS" | jq '[.[] | select(.name != "HOME") | .size | tonumber] | add')
+    local _HOME_SIZE=$(echo "$_JSON_PARTITIONS" | jq '[.[] | select(.name == "HOME") | .size | tonumber] | add // 0')
+    local _DISK_SIZE=$(get_megas_device "$_DEVICE")
+    local _FREE_SIZE=$(( _DISK_SIZE - _RESERVED - 1 ))
 
-    _RESERVED=$(echo "$_JSON_PARTITIONS" | jq ' .[] | select( .name != "HOME") | .size | tonumber')
-    _RESERVED=$(echo 1+$_RESERVED | tr " " "+")
-    _RESERVED=$(( $_RESERVED ))
-    _FREE_SIZE=$(( $(get_megas_device $_DEVICE ) - $_RESERVED - 1 ))
-    _HOME_SIZE=$(echo "$_JSON_PARTITIONS" | jq ' .[] | select( .name == "HOME") | .size | tonumber')
-
-    # Limitar tamaño de la particion de datos
-    if [ $_FREE_SIZE -le $_HOME_SIZE ]
-    then
-        echo $_FREE_SIZE
+    if [ "$_FREE_SIZE" -le "$_HOME_SIZE" ]; then
+        echo "$_FREE_SIZE"
     else
-        echo $_HOME_SIZE
+        echo "$_HOME_SIZE"
     fi
 }
 
