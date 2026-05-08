@@ -72,3 +72,7 @@ Once booted (either in QEMU or via USB), you will access the main TUI menu:
 2. **Local Clone**: Clone a project already stored in the USB's data partition to the destination disk.
 3. **Local Images**: List, download, or delete system projects to/from the USB's storage.
 4. **Settings**: Configure the server URL, IP, keyboard layout, and checksum verification.
+
+### Server Requirements
+
+MCS expects a `projects.json` file at the pool root (`http://<SERVER>/pool/mcs/projects.json`) listing available projects. See the [Server Setup](docs/server_setup.md) guide for the format and the [Architecture](docs/architecture.md) document for details on the project directory structure.

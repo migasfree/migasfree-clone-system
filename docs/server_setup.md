@@ -14,7 +14,7 @@ The remote server must serve files over HTTP/HTTPS. By default, MCS looks for pr
 **Requirements for the remote server:**
 
 - **Format**: Images must be stored within **project directories**.
-- **Directory Listing**: The web server must have directory listing enabled (Apache `mod_autoindex` or Nginx `autoindex on`). MCS parses the HTML index to identify available project directories.
+- **Project Index**: A `projects.json` file at the pool root listing all available projects. MCS fetches this file instead of parsing directory listings. See format below.
 - **Naming**: Use descriptive directory names (e.g., `inv.org_lnx-1`).
 
 Each project directory must contain:
@@ -23,6 +23,28 @@ Each project directory must contain:
 - `SYSTEM.raw`: The root filesystem partition image.
 - `HOME.raw`: The data/user partition image.
 - `checksums.sha256` **(optional)**: SHA-256 checksums for integrity verification.
+
+### `projects.json`
+
+This file indexes all available projects. MCS fetches it from `http://<SERVER_URL>/pool/mcs/projects.json` to populate the cloning menus.
+
+**Format:**
+
+```json
+[
+  {"name": "ubuntu-22-04",  "enabled": true,  "description": "Ubuntu 22.04 LTS"},
+  {"name": "windows-10",    "enabled": true,  "description": "Windows 10 Enterprise"},
+  {"name": "centos-7",      "enabled": false, "description": "CentOS 7 (discontinued)"}
+]
+```
+
+| Field | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `name` | string | — | Project directory name. Must match the directory on the server. |
+| `enabled` | boolean | `true` | Controls visibility. When `false`, the project is not listed in MCS menus. |
+| `description` | string | `""` | Optional human-readable description shown alongside the project name. |
+
+Projects with `enabled: false` are filtered out by MCS. This allows deactivating projects without removing their files from the server.
 
 ---
 
@@ -145,7 +167,8 @@ In high-speed local networks, you can disable checksum verification to save time
 2. **Extraction**: Extract the partitions to RAW files (`SYSTEM.raw` and `HOME.raw`).
 3. **Configuration**: Create the `partition.yml` and `checksums.sha256`.
 4. **Upload**: Upload the project directory to the server's `/pool/mcs/` path.
-5. **Discovery**: Boot MCS on a client machine. The new project will automatically appear.
+5. **Indexing**: Add the project to `projects.json` in the pool root. This is how MCS discovers and lists available projects.
+6. **Discovery**: Boot MCS on a client machine. The new project will appear in the Network Clone menu.
 
 ---
 
@@ -154,9 +177,10 @@ In high-speed local networks, you can disable checksum verification to save time
 When a project is downloaded via the TUI, it is stored in the persistent data partition of the MCS USB drive.
 
 - **Mount Point**: `/mcsdata`
-- **Projects Directory**: `/pool/mcs/` (inside the data partition).
+- **Projects Directory**: `/mcsdata/images/`
+- **Local Project Index**: After each download, MCS saves a copy of `projects.json` in `/mcsdata/images/projects.json`. This allows local clone and list menus to show project descriptions even when offline. The file is overwritten on each subsequent download from the same server.
 
-You can also manually load projects by copying directories directly to the USB.
+You can also manually load projects by copying directories directly to the USB's `images/` folder. Note that manually added projects will not have descriptions unless `projects.json` is also updated.
 
 ---
 
