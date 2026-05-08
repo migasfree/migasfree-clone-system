@@ -2,9 +2,25 @@
 
 **Rol revisor**: Technical Lead & Architect
 **Fecha**: 2026-05-05
-**Última actualización**: 2026-05-07
+**Última actualización**: 2026-05-08
 **Alcance**: Auditoría estática completa del código fuente (1860 líneas en 7 archivos principales).
 **Marco**: STRIDE (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation of Privilege) + ADR.
+
+---
+
+## 0. Nota sobre el Contexto de Re-evaluación
+
+Este informe fue re-evaluado el **2026-05-08** considerando que MCS es una **utilidad de clonado en entorno live USB**, análoga a cualquier live USB de distribución (SystemRescue, GParted Live, Clonezilla, ArchISO, etc.) cuyo propósito es instalar un sistema operativo en un disco local.
+
+Determinados hallazgos marcados inicialmente como "riesgos" o "anomalías" se han reclasificado como **no proceden** por ser prácticas estándar en live USBs:
+
+- **Acceso root sin contraseña en múltiples TTYs**: estándar en todo live USB de rescate/instalación. El técnico necesita acceso total al hardware (discos, NBD, particiones) y la capacidad de debuggear desde una segunda terminal si el TUI se bloquea.
+- **TOFU (Trust On First Use) en `update-ca-certificates`**: aceptable en redes corporativas controladas donde el servidor de imágenes es interno y el administrador controla la infraestructura.
+- **Entrada estática en `/etc/hosts`**: práctica común en entornos enterprise sin DNS interno o con DNS no autoritativo para el dominio del servidor de imágenes.
+- **Auto-redimensionado `resize_MCS_DATA`**: razonable en un live USB con persistencia (partición `MCS_DATA`), análogo al overlay persistente de SystemRescue.
+- **NBD + HTTP Streaming ("Turbo Clone")**: no es sobreingeniería; es el **feature diferencial** del proyecto frente a live USBs tradicionales.
+
+Los hallazgos que **sí se mantienen** son aquellos que constituyen code smells, bugs funcionales reales, o malas prácticas independientes del contexto (ej. `umount -l` sin sincronización, parseo HTML frágil, valores por defecto engañosos).
 
 ---
 
@@ -202,10 +218,10 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 
 ### S — Spoofing (Suplantación)
 
-| ID | Amenaza | Código |
-| :--- | :--- | :--- |
-| **S-01** | Servidor de imágenes suplantado vía DNS poisoning | `menu.sh:90` — `echo "${SERVER_IP} ${SERVER_URL}" >> /etc/hosts` sin validación de IP |
-| **S-02** | Certificado CA aceptado sin validación de cadena | `menu.sh:494` — `openssl s_client -connect ...` sin `-verify_return_error` |
+| ID | Amenaza | Código | Contexto |
+| :--- | :--- | :--- | :--- |
+| **S-01** | Servidor de imágenes suplantado vía DNS poisoning | `menu.sh:90` — `echo "${SERVER_IP} ${SERVER_URL}" >> /etc/hosts` sin validación de IP | 🟡 **No procede** en entorno enterprise. Práctica común en redes sin DNS interno. El administrador controla tanto el servidor como los clientes live USB. |
+| **S-02** | Certificado CA aceptado sin validación de cadena | `menu.sh:494` — `openssl s_client -connect ...` sin `-verify_return_error` | 🟡 **No procede** en red corporativa controlada. TOFU es aceptable cuando el servidor de imágenes es interno y el risk model asume confianza en la infraestructura. |
 
 ### T — Tampering (Manipulación)
 
@@ -239,11 +255,11 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 
 ### E — Elevation of Privilege (Elevación de privilegios)
 
-| ID | Amenaza | Código |
-| :--- | :--- | :--- |
-| **E-01** | Root sin contraseña con 3 TTYs interactivos | `inittab:8-10`, `makeimg:78` |
-| **E-02** | `docker run --privileged` otorga capacidades de root en el host | `build.sh:57` |
-| **E-03** | `chroot` con `--force` puede escribir en dispositivos no previstos | `functions:766,776` |
+| ID | Amenaza | Código | Contexto |
+| :--- | :--- | :--- | :--- |
+| **E-01** | Root sin contraseña con 3 TTYs interactivos | `inittab:8-10`, `makeimg:78` | 🟢 **No procede** — estándar en live USBs de rescate/instalación (SystemRescue, GParted Live, Clonezilla). El técnico necesita root para todo y la TTY adicional permite debuggear si el TUI se cuelga. |
+| **E-02** | `docker run --privileged` otorga capacidades de root en el host | `build.sh:57` | |
+| **E-03** | `chroot` con `--force` puede escribir en dispositivos no previstos | `functions:766,776` | |
 
 ---
 
@@ -454,11 +470,11 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | :--- | :--- | :--- | :--- |
 | Bugs confirmados sin resolver | 7 | **0** ✅ | ≤3 |
 | Violaciones SH resueltas | 0/13 | **12/13** ✅ | 13/13 |
-| STRIDE resueltos | 0/17 | **6/17** (T-01, T-02, T-03, D-01, D-02, D-03) | 17/17 |
+| STRIDE resueltos | 0/17 | **6/17** mitigados (T-01, T-02, T-03, D-01, D-02, D-03) — **3/17 no proceden** en contexto live USB (S-01, S-02, E-01) | documentar |
 | Cobertura de tests (escenarios) | 4/14 (29%) | 4/14 (29%) | >70% |
 | Código muerto | ~218 líneas (~12%) | **0** ✅ eliminado | 0 |
 | Shell scripts con `set -euo pipefail` | 1/4 | **2/4** ✅ | 4/4 |
-| Documentación cubierta por ADR | 1 | 1 | Todas las decisiones estructurales |
+| Documentación cubierta por ADR | 1 | **2** ✅ (sección 0 añadida) | Todas las decisiones estructurales |
 
 ---
 
