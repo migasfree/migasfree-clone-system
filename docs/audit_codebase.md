@@ -449,6 +449,16 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 - Particiones con punto de montaje y nombre no reconocido generan `[WARNING]`
 - `BIOS` (sin mount) sigue en silencio como es correcto
 
+### Commit `872fff6` — `refactor: replace HTML directory listing parsing with JSON API`
+
+- Nueva función `fetch_remote_projects` con `projects.json` + `jq`
+- Fallback legacy HTML eliminado en `0b2c141`
+
+### Commit `620cde5` — `feat: support object format in projects.json with enabled field`
+
+- Formato: `[{"name": "...", "published": true}, ...]`
+- Campo `published` para activar/desactivar proyectos sin borrar archivos
+
 ---
 
 ## 10. Plan de Remediación (Actualizado)
@@ -489,7 +499,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | **P2** | SH-005: `printf` en lugar de `echo` | ✅ |
 | **P2** | Tests unitarios (bats-core) | 5 h |
 | **P2** | Refactor `clone_HD` | 3 h |
-| **P2** | Reemplazar parseo HTML por JSON | 3 h |
+| **P2** | Reemplazar parseo HTML por JSON | ✅ `872fff6` |
 | **P3** | SH-012: `lsblk` con `-J` (JSON) | ✅ |
 | **P3** | SH-013: documentar diferencias busybox/GNU | ✅ |
 
@@ -523,7 +533,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 | Código muerto | ~218 líneas (~12%) | **0** ✅ eliminado | 0 |
 | Shell scripts con `set -euo pipefail` | 1/4 | **2/4** ✅ | 4/4 |
 | Documentación cubierta por ADR | 1 | **2** ✅ (sección 0 añadida) | Todas las decisiones estructurales |
-| Code smells activos (sin fix) | - | **1** (parseo HTML) | 0 |
+| Code smells activos (sin fix) | - | **0** ✅ (parseo HTML reemplazado por JSON en `872fff6`) | 0 |
 | Ramas sin return explícito | - | **0** ✅ (`connect_HD` block device corregido) | 0 |
 | Variables sin `local` (SH-004) | >4 | **0** ✅ (`max_home_size`, `prefix_part` corregidos en `652e680`, `41a38d3`) | 0 |
 

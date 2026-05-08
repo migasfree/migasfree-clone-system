@@ -70,6 +70,80 @@ sequenceDiagram
     M->>U: Show "Success"
 ```
 
+## 📁 Server Project Structure
+
+Project images are served via HTTP. Each project is a directory on the server containing the raw partition images and metadata.
+
+### Directory Layout
+
+```
+http://<SERVER>/pool/mcs/
+├── ubuntu-22-04/
+│   ├── partition.yml          # Partition scheme (mandatory)
+│   ├── checksums.sha256       # Integrity hashes (optional)
+│   ├── SYSTEM.raw             # Root filesystem image
+│   └── HOME.raw               # User data partition image
+├── windows-10/
+│   ├── partition.yml
+│   ├── checksums.sha256
+│   ├── SYSTEM.raw
+│   └── HOME.raw
+└── projects.json              # Project index (mandatory)
+```
+
+### `projects.json`
+
+This file indexes all available projects on the server. MCS fetches it instead of parsing the server's directory listing.
+
+**Format:**
+
+```json
+[
+  {"name": "ubuntu-22-04",  "published": true},
+  {"name": "windows-10",    "published": true},
+  {"name": "centos-7",      "published": false}
+]
+```
+
+| Field | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `name` | string | — | Project directory name. Must match the directory on the server. |
+| `published` | boolean | `true` | Controls visibility in MCS. When `false`, the project is not listed in the cloning menus. Useful for deactivating projects without removing files. |
+
+If the `published` field is omitted, the project is shown by default. Only items with `published: false` are filtered out.
+
+### `partition.yml`
+
+Each project directory must contain a `partition.yml` describing its partition layout. Example:
+
+```yaml
+partitions:
+  - number: 1
+    name: EFI
+    size: 512
+    filesystem: vfat
+    mount: /boot/efi
+    type: C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+  - number: 2
+    name: BIOS
+    size: 1
+    type: 21686148-6449-6E6F-744E-656564454649
+  - number: 3
+    name: SYSTEM
+    size: 20480
+    filesystem: ext4
+    mount: /
+    type: EBD0A0A2-B9E5-4433-87C0-68B6B72699C7
+  - number: 4
+    name: HOME
+    size: 0
+    filesystem: ext4
+    mount: /home
+    type: EBD0A0A2-B9E5-4433-87C0-68B6B72699C7
+```
+
+Size is in MB. A size of `0` means the partition uses the remaining disk space.
+
 ## 🌐 Networking
 
 MCS is configured to use DHCP on all interfaces by default. Upon boot, it attempts to:
