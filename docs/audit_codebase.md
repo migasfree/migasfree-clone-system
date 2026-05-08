@@ -2,7 +2,7 @@
 
 **Rol revisor**: Technical Lead & Architect
 **Fecha**: 2026-05-05
-**Última actualización**: 2026-05-08
+**Última actualización**: 2026-05-08 (refactor clone_HD)
 **Alcance**: Auditoría estática completa del código fuente (1860 líneas en 7 archivos principales).
 **Marco**: STRIDE (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation of Privilege) + ADR.
 
@@ -295,15 +295,15 @@ Se eliminó el disconnect → connect intermedio. Ahora `make_partitions` → `p
 
 ### 7.1 Complejidad Ciclomática
 
-| Función | Líneas | `if`/`case`/loops | Nivel de anidación máximo |
+| Función | Líneas | `if`/`case`/loops | Nivel de anidamiento máximo |
 | :--- | :--- | :--- | :--- |
-| `clone_HD` | 152 | 18 | 5 |
+| `clone_HD` | ~~152~~ → **74** | ~~18~~ → **8** | ~~5~~ → **2** ✅ refactorizado |
 | `rescue` | 85 | 10 | 3 |
 | `make_file_systems` | 47 | 6 | 2 |
 | `network_clone_menu` | 55 | 8 | 3 |
 | `download_image` | 56 | 10 | 3 |
 
-`clone_HD` (funciones:551-703) es candidata prioritaria a refactorización.
+`clone_HD` fue refactorizado extrayendo 3 helpers: `resolve_partition_target`, `clone_partition_http` y `clone_partition_local`. El anidamiento pasó de 5 a 2 niveles.
 
 ### 7.2 Acoplamiento Temporal
 
@@ -315,12 +315,13 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 
 ### 7.3 Duplicación de Código
 
-| Patrón duplicado | Ocurrencias | Ubicaciones |
-| :--- | :--- | :--- |
-| `dialog --backtitle ... --title ... --menu` | 5 | `menu.sh:128,307,409,432,450` |
-| `lsblk \| grep \| awk` para encontrar device/part por label | 6 | `menu.sh:46-58,61-74`, `functions:155-170,172-186` |
-| `mount -o ro` + `mount -o rw` con detección de `_FSTYPE` | 2 | `functions:620-629`, `functions:667-676` |
-| `partprobe; sync; sleep 2` (duplicado) | ~~2~~ → **0** ✅ | Reemplazado por `sync_parts()` helper |
+| Patrón duplicado | Ocurrencias | Ubicaciones | Estado |
+| :--- | :--- | :--- | :--- |
+| `dialog --backtitle ... --title ... --menu` | 5 | `menu.sh:128,307,409,432,450` | 🟡 pendiente |
+| `lsblk \| grep \| awk` para encontrar device/part por label | 6 | `menu.sh:46-58,61-74`, `functions:155-170,172-186` | ✅ resuelto (SH-012) |
+| `mount -o ro` + `mount -o rw` con detección de `_FSTYPE` | 2 | `functions:620-629`, `functions:667-676` | ✅ eliminado (BUG-002) |
+| `partprobe; sync; sleep 2` (duplicado) | ~~2~~ → **0** ✅ | Reemplazado por `sync_parts()` helper | ✅ resuelto |
+| `part_by_label \|\| part_by_id` como fallback | ~~2 instancias (HTTP y local)~~ → **0** ✅ | Extraída `resolve_partition_target()` en refactor `clone_HD` | ✅ resuelto |
 
 ---
 
@@ -491,6 +492,16 @@ Se implementó una suite completa de tests unitarios con bats-core, mocks de sis
 - Se mantiene `#set -e` comentado porque el script no fue diseñado para `set -e`
 - Cierra la métrica al 7/7
 
+### Commit `HEAD` — `refactor: extract clone_HD helpers, reduce complexity`
+
+- Extraídas `resolve_partition_target`, `clone_partition_http` y `clone_partition_local` de `clone_HD`
+- `clone_HD`: 122 → 74 líneas (-40%), 18 → 8 condicionales, anidamiento 5 → 2
+- jq filtra solo HOME/SYSTEM (elimina iteración muerta sobre BIOS/EFI/SWAP)
+- Eliminada variable `_SIZE` no utilizada en el bucle
+- Eliminada duplicación `part_by_label || part_by_id` (↳ `resolve_partition_target`)
+- Variables sin comillas corregidas (`$_TARGET`, `$_SOURCE` en `disconnect_HD`)
+- 66/66 tests pasan sin cambios
+
 ### Commit `HEAD` — `feat: add bats-core unit test suite (66 tests)`
 
 - Implementada suite completa de tests unitarios con bats-core + mocks de sistema
@@ -541,7 +552,7 @@ Se implementó una suite completa de tests unitarios con bats-core, mocks de sis
 | :--- | :--- | :--- |
 | **P2** | SH-005: `printf` en lugar de `echo` | ✅ |
 | **P2** | Tests unitarios (bats-core) | ✅ 66 tests (8 files, ~5s) |
-| **P2** | Refactor `clone_HD` | Pendiente (3 h) |
+| **P2** | Refactor `clone_HD` | ✅ **COMPLETADO** — 3 helpers extraídos, complejidad reducida |
 | **P2** | Reemplazar parseo HTML por JSON | ✅ `872fff6` |
 | **P3** | SH-012: `lsblk` con `-J` (JSON) | ✅ |
 | **P3** | SH-013: documentar diferencias busybox/GNU | ✅ |
@@ -591,7 +602,7 @@ Se implementó una suite completa de tests unitarios con bats-core, mocks de sis
 | Code smells activos | - | **0** ✅ (parseo HTML → JSON) | 0 |
 | Ramas sin return explícito | - | **0** ✅ | 0 |
 | Variables sin `local` (SH-004) | >4 | **0** ✅ | 0 |
-| Único pendiente: refactor `clone_HD` | - | **1** (3h estimadas) | 0 |
+| Único pendiente: refactor `clone_HD` | - | **0** ✅ completado |
 
 ---
 

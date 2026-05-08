@@ -165,11 +165,11 @@ Custom assertions in `tests/helpers/assert.bash`:
 | Area | Tests | Status |
 | --- | --- | --- |
 | `prefix_part` | 12 | ✅ |
-| `part_by_label`, `disk_by_label`, `part_by_id`, `id_by_part`, `dev_by_part`, `part_by_name`, `part_label` | 14 | ✅ |
+| `part_by_label`, `disk_by_label`, `part_by_id`, `id_by_part`, `dev_by_part`, `part_by_name`, `part_label` | 16 | ✅ |
 | `nbd-first-free` | 4 | ✅ |
 | `max_home_size` | 4 | ✅ |
 | `load_partition_scheme` | 8 | ✅ |
 | `verify_file_checksum`, `verify_partition_checksum` | 6 | ✅ |
 | `make_fstab` | 9 | ✅ |
-| `clone_HD` | 9 | ✅ |
+| `clone_HD` | 7 | ✅ |
 | **Total** | **66** | ✅ |

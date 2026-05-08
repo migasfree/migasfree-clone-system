@@ -660,23 +660,68 @@ verify_partition_checksum() {
 }
 
 
+# Resolve the target partition device for a given name and number
+# Tries label match first, falls back to partition number
+resolve_partition_target() {
+    local _TARGET="$1"
+    local _NAME="$2"
+    local _NUMBER="$3"
+
+    local _DEV_PART=$(part_by_label_on_device "$_TARGET" "$_NAME")
+    if [ -n "$_DEV_PART" ]; then
+        echo "$_DEV_PART"
+    else
+        part_by_id "$_TARGET" "$_NUMBER"
+    fi
+}
+
+# Clone a single partition from an HTTP source (Turbo Clone: wget|dd)
+clone_partition_http() {
+    local _URL="$1"
+    local _DEV_PART_TARGET="$2"
+    local _NAME="$3"
+
+    local _REMOTE_URL="${_URL}${_NAME}.raw"
+    mcs_log "  [+] Copying partition $_NAME via wget from ${_REMOTE_URL}..."
+    { wget -nv -O - "$_REMOTE_URL" 2>&1 1>&3 | tee /dev/stderr >> "$MCS_LOG_FILE"; } 3>&1 | pv -f | dd of="${_DEV_PART_TARGET}" bs=1M 2>>"$MCS_LOG_FILE"
+    local _RET=$?
+    sync
+    if [ $_RET -ne 0 ]; then return 1; fi
+    verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || { mcs_log "  [WARNING] Integrity check failed for $_NAME"; return 1; }
+}
+
+# Clone a single partition from a local directory source
+clone_partition_local() {
+    local _SOURCE_DIR="$1"
+    local _DEV_PART_TARGET="$2"
+    local _NAME="$3"
+
+    local _RAW_FILE="${_SOURCE_DIR}/${_NAME}.raw"
+    if [ ! -f "$_RAW_FILE" ]; then
+        mcs_log "  [ERROR] Partition image not found: $_RAW_FILE"
+        return 1
+    fi
+
+    mcs_log "  [+] Copying partition $_NAME from ${_RAW_FILE}..."
+    pv -f "$_RAW_FILE" | dd of="${_DEV_PART_TARGET}" bs=1M 2>>"$MCS_LOG_FILE"
+    local _RET=$?
+    sync
+    if [ $_RET -ne 0 ]; then return 1; fi
+    verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || { mcs_log "  [WARNING] Integrity check failed for $_NAME"; return 1; }
+}
+
 # clone_HD clon.qcow2 /dev/sdx
 clone_HD() {
     local _SOURCE="$1"
     local _TARGET="$2"
     local _PRESERVE_HOME="${3:-false}"
-    local _ORIGIN_TARGET=${_TARGET}
+    local _ORIGIN_TARGET="${_TARGET}"
     local _RET=0
 
-    # Load partition scheme if partition.yml exists in source
     load_partition_scheme "$_SOURCE" || return 1
 
-    local _PARTITIONS=$(echo "$_JSON_PARTITIONS"|jq -r '.[] | "\(.number);\(.name);\(.size);"' 2>/dev/null)
+    local _PARTITIONS=$(echo "$_JSON_PARTITIONS"|jq -r '.[] | select(.name == "HOME" or .name == "SYSTEM") | "\(.number);\(.name)"' 2>/dev/null)
     mcs_log "  [DEBUG] Total partitions in scheme: $(echo "$_JSON_PARTITIONS" | jq '. | length')"
-    mcs_log "  [DEBUG] Partitions to process: $(echo "$_PARTITIONS" | grep -c ";" || echo 0)"
-
-    local _NUMBER
-    local _NAME
 
     if [ "$_PRESERVE_HOME" = "true" ]; then
         mcs_log "  [INFO] PRESERVE_HOME enabled — skipping repartition and filesystem creation"
@@ -688,17 +733,10 @@ clone_HD() {
     mcs_log "[DEBUG] Argument 2 (Target Disk): $2"
 
     _SOURCE=$(connect_HD "$1")
-    if [ -z "$_SOURCE" ]; then
-        echo "  [ERROR] Failed to connect source: $1" >&2
-        return 1
-    fi
+    [ -z "$_SOURCE" ] && { echo "  [ERROR] Failed to connect source: $1" >&2; return 1; }
     _TARGET=$(connect_HD "$2")
-    if [ -z "$_TARGET" ]; then
-        echo "  [ERROR] Failed to connect target: $2" >&2
-        disconnect_HD "$_SOURCE"
-        return 1
-    fi
-    
+    [ -z "$_TARGET" ] && { echo "  [ERROR] Failed to connect target: $2" >&2; disconnect_HD "$_SOURCE"; return 1; }
+
     mcs_log "[DEBUG] Connected Source: $_SOURCE"
     mcs_log "[DEBUG] Connected Target: $_TARGET"
 
@@ -706,81 +744,46 @@ clone_HD() {
     IFS=$'\n'
     for _PARTITION in $_PARTITIONS
     do
-        _NUMBER=$(echo "$_PARTITION" | awk -F ";" '{print $1}')
-        _NAME=$(echo "$_PARTITION" | awk -F ";" '{print $2}')
-        _SIZE=$(echo "$_PARTITION" | awk -F ";" '{print $3}')
-        
+        local _NUMBER=$(echo "$_PARTITION" | awk -F ";" '{print $1}')
+        local _NAME=$(echo "$_PARTITION" | awk -F ";" '{print $2}')
+
         if [ "$_PRESERVE_HOME" = "true" ] && [ "$_NAME" = "HOME" ]; then
             mcs_log "  [SKIP] $_NAME partition preserved (existing user data kept)"
             continue
         fi
 
-        mcs_log "  [DEBUG] Checking partition $_NUMBER: $_NAME"
-        
-        case "$_NAME" in
-            "HOME"|"SYSTEM" )
-                if [ $_NAME = "HOME" ]
-                then
-                    _SIZE=$(max_home_size $_TARGET)
-                fi
-                mcs_log " "
-                mcs_log "Clonando: $_NAME"
-                mcs_log "================"
+        mcs_log " "
+        mcs_log "Clonando: $_NAME"
+        mcs_log "================"
 
-                if [[ "$_SOURCE" == http* ]]; then
-                    _DEV_PART_TARGET=$(part_by_label_on_device "$_TARGET" "$_NAME")
-                    if [ -z "$_DEV_PART_TARGET" ]; then
-                        _DEV_PART_TARGET=$(part_by_id "$_TARGET" "$_NUMBER")
-                    fi
-                    mcs_log "[DEBUG] Target device: $_DEV_PART_TARGET"
+        local _DEV_PART_TARGET=$(resolve_partition_target "$_TARGET" "$_NAME" "$_NUMBER")
+        if [ -z "$_DEV_PART_TARGET" ]; then
+            mcs_log "  [ERROR] Cannot resolve target partition for $_NAME"
+            _RET=1
+            continue
+        fi
+        mcs_log "[DEBUG] Target device: $_DEV_PART_TARGET"
 
-                    local _REMOTE_URL="${_SOURCE}${_NAME}.raw"
-                    mcs_log "  [+] Copying partition $_NAME via wget from ${_REMOTE_URL}..."
-                    # Use pv for progress since BusyBox dd doesn't support status=progress
-                    # Swap wget's stderr to stdout so we can tee it to the screen and log, while sending the real data to pv
-                    { wget -nv -O - "$_REMOTE_URL" 2>&1 1>&3 | tee /dev/stderr >> "$MCS_LOG_FILE"; } 3>&1 | pv -f | dd of="${_DEV_PART_TARGET}" bs=1M 2>>"$MCS_LOG_FILE"
-                    if [ $? -ne 0 ]; then _RET=1; fi
-                    sync
-                    verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || { mcs_log "  [WARNING] Integrity check failed for $_NAME"; _RET=1; }
-                elif [ -d "$_SOURCE" ]; then
-                    _DEV_PART_TARGET=$(part_by_label_on_device "$_TARGET" "$_NAME")
-                    if [ -z "$_DEV_PART_TARGET" ]; then
-                        _DEV_PART_TARGET=$(part_by_id "$_TARGET" "$_NUMBER")
-                    fi
-                    mcs_log "[DEBUG] Target device: $_DEV_PART_TARGET"
-
-                    local _RAW_FILE="${_SOURCE}/${_NAME}.raw"
-
-                    if [ -f "$_RAW_FILE" ]; then
-                        mcs_log "  [+] Copying partition $_NAME from ${_RAW_FILE}..."
-                        # Use pv for progress since BusyBox dd doesn't support status=progress
-                        pv -f "$_RAW_FILE" | dd of="${_DEV_PART_TARGET}" bs=1M 2>>"$MCS_LOG_FILE"
-                        if [ $? -ne 0 ]; then _RET=1; fi
-                        sync
-                        verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || { mcs_log "  [WARNING] Integrity check failed for $_NAME"; _RET=1; }
-                    else
-                        mcs_log "  [ERROR] Partition image not found: $_RAW_FILE"
-                        _RET=1
-                    fi
-                else
-                    mcs_log "  [ERROR] Unknown source type for $_NAME cloning."
-                fi
-
-                ;;
-            *)
-                ;;
-        esac
+        if [[ "$_SOURCE" == http* ]]; then
+            clone_partition_http "$_SOURCE" "$_DEV_PART_TARGET" "$_NAME" || _RET=1
+        elif [ -d "$_SOURCE" ]; then
+            clone_partition_local "$_SOURCE" "$_DEV_PART_TARGET" "$_NAME" || _RET=1
+        else
+            mcs_log "  [ERROR] Unknown source type for $_NAME cloning."
+            _RET=1
+        fi
     done
     IFS="$_OLD_IFS"
-    disconnect_HD $_TARGET
-    disconnect_HD $_SOURCE
+
+    disconnect_HD "$_TARGET"
+    disconnect_HD "$_SOURCE"
 
     if [ $_RET -ne 0 ]; then
         mcs_log "  [ERROR] Cloning failed. Skipping bootloader configuration."
         return $_RET
     fi
 
-    rescue $_ORIGIN_TARGET
+    rescue "$_ORIGIN_TARGET"
     return $?
 }
 
