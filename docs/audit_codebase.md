@@ -456,8 +456,8 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 
 ### Commit `620cde5` — `feat: support object format in projects.json with enabled field`
 
-- Formato: `[{"name": "...", "published": true}, ...]`
-- Campo `published` para activar/desactivar proyectos sin borrar archivos
+- Formato: `[{"name": "...", "enabled": true}, ...]`
+- Campo `enabled` para activar/desactivar proyectos sin borrar archivos
 
 ---
 

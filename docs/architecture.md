@@ -99,18 +99,18 @@ This file indexes all available projects on the server. MCS fetches it instead o
 
 ```json
 [
-  {"name": "ubuntu-22-04",  "published": true},
-  {"name": "windows-10",    "published": true},
-  {"name": "centos-7",      "published": false}
+  {"name": "ubuntu-22-04",  "enabled": true},
+  {"name": "windows-10",    "enabled": true},
+  {"name": "centos-7",      "enabled": false}
 ]
 ```
 
 | Field | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `name` | string | — | Project directory name. Must match the directory on the server. |
-| `published` | boolean | `true` | Controls visibility in MCS. When `false`, the project is not listed in the cloning menus. Useful for deactivating projects without removing files. |
+| `enabled` | boolean | `true` | Controls visibility in MCS. When `false`, the project is not listed in the cloning menus. Useful for deactivating projects without removing files. |
 
-If the `published` field is omitted, the project is shown by default. Only items with `published: false` are filtered out.
+If the `enabled` field is omitted, the project is shown by default. Only items with `enabled: false` are filtered out.
 
 ### `partition.yml`
 
