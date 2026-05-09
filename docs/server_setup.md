@@ -161,6 +161,102 @@ In high-speed local networks, you can disable checksum verification to save time
 
 ---
 
+## 🤖 MCS Build API (migasfree/manager)
+
+The Manager service exposes two endpoints to programmatically build MCS project images.
+
+### Queue a Build
+
+Triggers an asynchronous build for a Migasfree project. On completion, `SYSTEM.raw`, `HOME.raw`, `partition.yml`, `checksums.sha256`, and `projects.json` are placed in `/mnt/cluster/datashares/<STACK>/pool/mcs/<project-slug>/`.
+
+```http
+POST /manager/v1/private/mcs/build
+Authorization: Token <superadmin_token>
+Content-Type: application/json
+
+{"project_id": <integer>}
+```
+
+**Response** `200 OK`:
+
+```json
+{
+  "task_id": "9183ccb6-f9b1-4b61-8e74-17d88ef69a16"
+}
+```
+
+### Poll Build Status
+
+```http
+GET /manager/v1/private/mcs/build/{task_id}/status
+```
+
+**Response** `200 OK`:
+
+```json
+{
+  "task_id": "9183ccb6-f9b1-4b61-8e74-17d88ef69a16",
+  "status": "building",
+  "progress": 0,
+  "message": "Building image: Step 8/12",
+  "created_at": "2026-05-09T17:47:38.394968+00:00",
+  "updated_at": "2026-05-09T18:01:53.805228+00:00"
+}
+```
+
+**Status values:**
+
+| Status | Description |
+| :--- | :--- |
+| `queued` | Waiting for worker |
+| `building` | Docker image build (message shows current `Step N/M`) |
+| `exporting` | Container filesystem being extracted |
+| `creating` | `.raw` images being created |
+| `finalizing` | Generating metadata and moving to pool |
+| `completed` | Build successful |
+| `error` | Build failed (message has details) |
+
+### 🔍 Following Progress
+
+To monitor the build progress in real-time, you should poll the **Status Endpoint** periodically (e.g., every 5 seconds).
+
+The `message` field provides live feedback from the build pipeline:
+
+- During the **`building`** phase, the message is updated automatically with the current Docker build step (e.g., `"Building image: Step 4/12"`).
+- If the build enters the **`error`** state, the `message` will contain the last relevant error line from the Docker output or the system logs to help diagnose the failure (e.g., `"Docker build failed: E: Unable to locate package linux-generic"`).
+
+For developers, the full output of the build process can be monitored directly from the server using the following commands:
+
+**Follow logs in real-time:**
+
+```bash
+docker logs $(docker ps --filter name=inv_manager -q | head -1) -f
+```
+
+**Search for recent build errors:**
+
+```bash
+docker logs $(docker ps --filter name=inv_manager -q | head -1) 2>&1 | grep "mcs_builder" | tail -30
+```
+
+### Build Lifecycle
+
+1. **Manager receives POST** — validates project exists, pushes task to Redis queue.
+2. **Background worker** picks up the task and starts the build pipeline.
+3. **Docker image build** — generates a Dockerfile from the project's `base_os`, installs packages.
+4. **Filesystem extraction** — exports the container via `docker export | tar -xf -` pipe (no intermediate tar file).
+5. **Raw image creation** — `mkfs.ext4 -d` creates `SYSTEM.raw` and `HOME.raw` from the extracted directories, then `resize2fs -M` shrinks them to fit the actual content.
+6. **Metadata generation** — creates `partition.yml`, `checksums.sha256`, updates `projects.json`.
+7. **Pool deployment** — all files moved to `pool/mcs/<slug>/`.
+
+### Prerequisites
+
+- The project must have `base_os` set in Core (e.g., `debian:13.4`).
+- The Manager container needs access to the Docker daemon (`/var/run/docker.sock`).
+- Build output is stored in the shared datashares volume.
+
+---
+
 ## 🔄 Image Lifecycle
 
 1. **Creation**: Create a master system image using your preferred method (e.g., QEMU, VirtualBox).
