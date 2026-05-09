@@ -77,6 +77,7 @@ SCRIPT
 teardown() {
     rm -rf "$MOCK_DIR"
     rm -f /tmp/sfdisk_calls /tmp/mkfs_calls
+    rm -f 256000M
 }
 
 
