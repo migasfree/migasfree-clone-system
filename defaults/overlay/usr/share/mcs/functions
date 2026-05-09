@@ -807,7 +807,8 @@ rescue() {
         mount -t auto "${_DEV_EFI}" "${_MOUNT}/boot/efi" >> "$MCS_LOG_FILE" 2>&1
     fi
 
-    for dir in dev proc sys run; do
+    for dir in dev dev/pts proc sys run; do
+        mkdir -p "${_MOUNT}/$dir"
         mount --bind "/$dir" "${_MOUNT}/$dir" >> "$MCS_LOG_FILE" 2>&1
     done
 
@@ -817,15 +818,22 @@ rescue() {
     mcs_log "Installing GRUB (BIOS)..."
     echo "(hd0) ${_DEVICE}" > "${_MOUNT}/boot/grub/device.map"
 
+    # Ensure bios_grub flag is set on the BIOS partition (part 2)
+    if which parted >/dev/null 2>&1; then
+        parted -s "${_DEVICE}" set 2 bios_grub on >> "$MCS_LOG_FILE" 2>&1
+    fi
+
     if chroot "${_MOUNT}" which grub-install >/dev/null 2>&1; then
-        chroot "${_MOUNT}" grub-install --target=i386-pc --force --modules="part_gpt biosdisk" "${_DEVICE}" 2>&1 | tee -a $MCS_LOG_FILE
+        chroot "${_MOUNT}" grub-install --target=i386-pc --force --modules="part_gpt biosdisk ext2" "${_DEVICE}" 2>&1 | tee -a $MCS_LOG_FILE
     else
         mcs_log "  [WARNING] grub-install not found inside target, trying from host..."
-        grub-install --target=i386-pc --boot-directory="${_MOUNT}/boot" --force "${_DEVICE}" 2>&1 | tee -a $MCS_LOG_FILE
+        grub-install --target=i386-pc --boot-directory="${_MOUNT}/boot" --force --modules="part_gpt biosdisk ext2" "${_DEVICE}" 2>&1 | tee -a $MCS_LOG_FILE
     fi
 
     if [ -n "$_DEV_EFI" ]; then
         mcs_log "Installing GRUB (UEFI)..."
+        # EFI mount for vars
+        mount -t efivarfs efivarfs "${_MOUNT}/sys/firmware/efi/efivars" 2>/dev/null || :
         if chroot "${_MOUNT}" which grub-install >/dev/null 2>&1; then
             chroot "${_MOUNT}" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=grub --force 2>&1 | tee -a $MCS_LOG_FILE
         else
@@ -837,9 +845,23 @@ rescue() {
 
     mcs_log "Updating GRUB configuration..."
     if chroot "${_MOUNT}" which grub-mkconfig >/dev/null 2>&1; then
+        # Disable os-prober temporarily to speed up and avoid confusion
+        chroot "${_MOUNT}" test -e /etc/grub.d/30_os-prober && chroot "${_MOUNT}" mv /etc/grub.d/30_os-prober /tmp/ >> "$MCS_LOG_FILE" 2>&1 || :
+        chroot "${_MOUNT}" touch /etc/grub.d/30_os-prober >> "$MCS_LOG_FILE" 2>&1 || :
+
         chroot "${_MOUNT}" grub-mkconfig -o /boot/grub/grub.cfg 2>&1 | tee -a $MCS_LOG_FILE
+
+        # Restore os-prober
+        chroot "${_MOUNT}" mv /tmp/30_os-prober /etc/grub.d/ >> "$MCS_LOG_FILE" 2>&1 || :
     else
         mcs_log "  [WARNING] grub-mkconfig not found inside target, skipping configuration update..."
+    fi
+
+    mcs_log "Updating initramfs..."
+    if chroot "${_MOUNT}" which update-initramfs >/dev/null 2>&1; then
+        chroot "${_MOUNT}" update-initramfs -u 2>&1 | tee -a $MCS_LOG_FILE
+    else
+        mcs_log "  [WARNING] update-initramfs not found inside target, skipping..."
     fi
 
     local _PARTUUID_SYSTEM=$(blkid -o value -s PARTUUID "${_DEV_SYSTEM}")
@@ -851,10 +873,12 @@ rescue() {
 
     mcs_log "Syncing and unmounting..."
     sync
-
-    for dir in dev proc sys run; do
+    sleep 2
+    umount -l "${_MOUNT}/dev/pts" 2>/dev/null
+    for dir in run sys proc dev; do
         umount -l "${_MOUNT}/$dir" 2>/dev/null
     done
+    umount "${_MOUNT}/sys/firmware/efi/efivars" 2>/dev/null
     umount "${_MOUNT}/boot/efi" 2>/dev/null
     umount "${_MOUNT}" 2>/dev/null
     rmdir "${_MOUNT}"
