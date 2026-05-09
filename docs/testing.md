@@ -29,10 +29,10 @@ Simply run the make command from the root of the repository. You can pass additi
 
 ```bash
 # Standard QEMU test
-make qemu
+make qemu-clone
 
-# Test with custom RAM and UEFI enabled
-make qemu ARGS="-m 4G -u"
+# With extra memory and UEFI
+make qemu-clone ARGS="-m 4G -u"
 
 # Test using a physical USB drive
 make qemu-usb DRIVE=/dev/sda

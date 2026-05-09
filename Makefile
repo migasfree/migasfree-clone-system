@@ -1,13 +1,13 @@
 # Migasfree Clone System (MCS) Build System
 
-.PHONY: build qemu qemu-boot qemu-usb test flash clean help
+.PHONY: build qemu-clone qemu-boot qemu-usb test flash clean help
 
 help:
 	@echo "MCS Command Center"
 	@echo "------------------"
 	@echo "Usage:"
 	@echo "  make build        Build the MCS bootable ISO image"
-	@echo "  make qemu         Launch QEMU with MCS ISO and a target disk (interactive clone test)"
+	@echo "  make qemu-clone   Launch QEMU with MCS ISO and a target disk (interactive clone test)"
 	@echo "  make qemu-boot    Verify the cloned target disk by booting it in QEMU"
 	@echo "  make qemu-usb     Launch QEMU using a physical USB (e.g. make qemu-usb DRIVE=/dev/sdX)"
 	@echo "  make test         Run unit tests (bats-core, 66 tests)"
@@ -17,7 +17,7 @@ help:
 build:
 	sudo ./scripts/build.sh
 
-qemu:
+qemu-clone:
 	sudo ./scripts/qemu.sh $(ARGS)
 
 qemu-boot:

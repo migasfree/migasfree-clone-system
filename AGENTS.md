@@ -54,7 +54,7 @@ MCS expects a specific partition scheme on the target disk (standard Migasfree/V
 ## 🛠️ Development & Testing
 
 - **Building**: Use `make build`. It creates `artifacts/mcs-<version>.iso`.
-- **Testing**: Use `make qemu`. It simulates a real environment with a target disk `artifacts/target-hd.qcow2`.
+- **Testing**: Use `make qemu-clone`. It simulates a real environment with a target disk `artifacts/target-hd.qcow2`.
 - **Unit tests**: Use `make test`. Runs the bats-core test suite (101 tests, ~5s).
 - **Verification**: After cloning inside the test VM, use `make qemu-boot` to verify the target disk's bootloader.
 

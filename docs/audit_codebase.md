@@ -336,7 +336,7 @@ La secuencia `disconnect → connect` entre particionado y formateo (BUG-006) es
 ### Estado actual
 
 - **Build test**: ✅ `make build` — verifica que el ISO se genera correctamente.
-- **Boot test**: ✅ `make qemu` — QEMU con BIOS y opcionalmente UEFI.
+- **Boot test**: ✅ `make qemu-clone` — QEMU con BIOS y opcionalmente UEFI.
 - **Post-clone boot test**: ✅ `make qemu-boot` — verifica que el disco clonado es booteable.
 - **USB deployment test**: ✅ `make qemu-usb DRIVE=/dev/sdX`.
 
