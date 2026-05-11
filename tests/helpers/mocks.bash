@@ -27,6 +27,7 @@ setup_mocks() {
     _create_mock_chroot
     _create_mock_sleep
     _create_mock_tee
+    _create_mock_e2fsprogs
 
     export PATH="$MOCK_DIR:$PATH"
 }
@@ -245,6 +246,13 @@ cat
 exit 0
 SCRIPT
     chmod +x "$MOCK_DIR/tee"
+}
+
+_create_mock_e2fsprogs() {
+    for cmd in e2fsck resize2fs; do
+        echo '#!/bin/bash' > "$MOCK_DIR/$cmd"
+        chmod +x "$MOCK_DIR/$cmd"
+    done
 }
 
 setup_nbd_sys_class() {

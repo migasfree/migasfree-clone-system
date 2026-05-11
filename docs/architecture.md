@@ -45,6 +45,7 @@ The build process is containerized to ensure all dependencies (`parted`, `grub`)
 
 MCS uses a **block-level streaming approach** using `dd` for maximum performance. This "Turbo Clone" mechanism directly pipes the RAW partition files (`SYSTEM.raw`, `HOME.raw`) from the source to the target partitions.
 
+- **Efficiency**: Since RAW images are shrunk to their minimum size during construction to save bandwidth, MCS automatically **expands the filesystem** to fill the target partition using `resize2fs` after cloning.
 - **Speed**: Network deployment reaches the maximum bandwidth available (100MB/s+ on Gigabit networks).
 - **Simplicity**: No complex mounting (NBD) or file-level synchronization is required.
 - **Reliability**: Block-level copies ensure the exact state of the source system, including complex permissions and special files.
@@ -65,6 +66,7 @@ sequenceDiagram
     M->>F: clone_HD(Source, Target)
     S->>T: Stream SYSTEM.raw via dd
     S->>T: Stream HOME.raw via dd
+    F->>T: expand_filesystem(Target)
     M->>F: rescue(Target)
     F->>T: Install GRUB & Fix fstab
     M->>U: Show "Success"

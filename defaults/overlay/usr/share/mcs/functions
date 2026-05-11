@@ -675,6 +675,24 @@ resolve_partition_target() {
     fi
 }
 
+# Expand filesystem to fill partition
+expand_filesystem() {
+    local _DEV_PART="$1"
+    local _NAME="$2"
+    local _FS_TYPE=$(blkid -o value -s TYPE "$_DEV_PART" 2>/dev/null)
+    
+    case "$_FS_TYPE" in
+        ext*)
+            mcs_log "  [+] Expanding $_FS_TYPE filesystem on $_NAME ($_DEV_PART)..."
+            e2fsck -f -p "$_DEV_PART" >> "$MCS_LOG_FILE" 2>&1 || :
+            resize2fs "$_DEV_PART" >> "$MCS_LOG_FILE" 2>&1
+            ;;
+        *)
+            mcs_log "  [DEBUG] Skipping resize for filesystem type: $_FS_TYPE"
+            ;;
+    esac
+}
+
 # Clone a single partition from an HTTP source (Turbo Clone: wget|dd)
 clone_partition_http() {
     local _URL="$1"
@@ -688,6 +706,7 @@ clone_partition_http() {
     sync
     if [ $_RET -ne 0 ]; then return 1; fi
     verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || { mcs_log "  [WARNING] Integrity check failed for $_NAME"; return 1; }
+    expand_filesystem "$_DEV_PART_TARGET" "$_NAME"
 }
 
 # Clone a single partition from a local directory source
@@ -708,6 +727,7 @@ clone_partition_local() {
     sync
     if [ $_RET -ne 0 ]; then return 1; fi
     verify_partition_checksum "$_DEV_PART_TARGET" "$_NAME" || { mcs_log "  [WARNING] Integrity check failed for $_NAME"; return 1; }
+    expand_filesystem "$_DEV_PART_TARGET" "$_NAME"
 }
 
 # clone_HD clon.qcow2 /dev/sdx

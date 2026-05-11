@@ -28,7 +28,8 @@ The `functions` script (located at `/usr/share/mcs/functions` in the booted syst
 | `clone_HD` | `source, target, preserve_home?` | Clones a source project (directory or URL) to a target block device. Orchestrates the full cloning workflow via `resolve_partition_target`, `clone_partition_http` and `clone_partition_local`. |
 | `resolve_partition_target` | `target, name, number` | Resolves the target partition device by label first, falling back to partition number. |
 | `clone_partition_http` | `url, device, name` | Streams a single `.raw` partition via HTTP `wget \| pv \| dd` (Turbo Clone) and verifies integrity. |
-| `clone_partition_local` | `source_dir, device, name` | Copies a single `.raw` partition from a local directory via `pv \| dd` and verifies integrity. |
+| `clone_partition_local` | `source_dir, device, name` | Copies a single `.raw` partition from a local directory via `pv \| dd`, verifies integrity and expands the filesystem. |
+| `expand_filesystem` | `device, name` | Expands an `ext*` filesystem to fill its partition using `e2fsck` and `resize2fs`. Automatically called after cloning. |
 | `verify_partition_checksum` | `device, partition_name` | Verifies the SHA-256 checksum of a written partition against the `checksums.sha256` file from the project. Reads the expected size from the checksums file. |
 | `rescue` | `device` | Reinstalls GRUB and regenerates `fstab` and `initramfs` on a target system. |
 

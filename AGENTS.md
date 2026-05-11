@@ -11,7 +11,7 @@ MCS is a lightweight, Alpine Linux-based imaging and deployment utility. It is d
 - **Base OS**: Minimal Alpine Linux.
 - **Build System**: Docker-based multi-stage build.
 - **TUI**: Shell-based (bash) using `dialog`.
-- **Cloning Engine**: Block-level `dd` and `wget | dd` streaming for high performance.
+- **Cloning Engine**: Block-level `dd` and `wget | dd` streaming for high performance, with automatic filesystem expansion via `resize2fs`.
 - **Persistence**: Uses a data partition (`MCS_DATA`) for storing images and configuration.
 
 ## 📁 Key File Map
