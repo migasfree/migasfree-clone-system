@@ -49,6 +49,7 @@ MCS uses a **block-level streaming approach** using `dd` for maximum performance
 - **Speed**: Network deployment reaches the maximum bandwidth available (100MB/s+ on Gigabit networks).
 - **Simplicity**: No complex mounting (NBD) or file-level synchronization is required.
 - **Reliability**: Block-level copies ensure the exact state of the source system, including complex permissions and special files.
+- **Persistence & Integrity**: MCS uses `conv=fsync` during `dd` operations and performs a global `sync` after unmounting to ensure all data and filesystem metadata (like the FAT "dirty bit") are correctly flushed to disk. For UEFI systems, it automatically verifies and repairs the EFI partition state using `dosfsck` during the rescue phase.
 
 ### Sequence Diagram: Cloning Process
 

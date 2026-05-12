@@ -62,6 +62,7 @@ TEST_RAM="2G"             # RAM for the VM
 TEST_DISK_SIZE="8G"       # Size of the testing image
 TEST_UEFI="true"          # Set to true to test UEFI boot
 OVMF_PATH="/usr/share/ovmf/OVMF.fd"
+TEST_UUID="71656d75-a1b2-c3d4-e5f6-7890abcdef01" # Fixed hardware UUID for Migasfree
 ```
 
 ### 3. Verifying the Clone (Boot Test)

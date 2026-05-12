@@ -22,7 +22,10 @@ CREATE_TESTING="true"
 TESTING_NAME="mcs-testing.iso"
 
 # Testing image size (e.g., 8G, 16G, 32G)
-TESTING_SIZE="8G"
+TESTING_SIZE="12G"
+
+# Fixed UUID for the motherboard (SMBIOS) to keep Migasfree identification persistent
+TEST_UUID="71656d75-a1b2-c3d4-e5f6-7890abcdef01"
 ```
 
 ### Build Script Variables
@@ -56,8 +59,6 @@ settings:
   keymap: es
   verify_checksums: true
 ```
-
-
 
 ## ⌨️ Keyboard Layouts
 
