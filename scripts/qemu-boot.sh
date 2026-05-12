@@ -18,6 +18,14 @@ TEST_UEFI="${TEST_UEFI:-false}"
 OVMF_PATH="${OVMF_PATH:-/usr/share/ovmf/OVMF.fd}"
 TEST_TARGET_DISK="${TEST_TARGET_DISK:-target-hd.qcow2}"
 
+# Parse command line arguments
+while getopts "m:u" opt; do
+    case ${opt} in
+        m ) TEST_RAM=$OPTARG ;;
+        u ) TEST_UEFI="true" ;;
+    esac
+done
+
 TARGET_PATH="${ARTIFACTSDIR}/${TEST_TARGET_DISK}"
 
 if [ ! -f "$TARGET_PATH" ]; then

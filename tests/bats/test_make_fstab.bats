@@ -4,7 +4,10 @@ setup() {
     load '../helpers/mocks'
     setup_mocks
     source_functions
-    _JSON_PARTITIONS=$(yq -o json '.partitions' "${FIXTURES_DIR}/partition.yml")
+    if [ -z "$_CACHED_JSON_PARTITIONS" ]; then
+        export _CACHED_JSON_PARTITIONS=$(yq -o json '.partitions' "${FIXTURES_DIR}/partition.yml")
+    fi
+    _JSON_PARTITIONS="$_CACHED_JSON_PARTITIONS"
 }
 
 teardown() {

@@ -13,7 +13,11 @@ setup() {
     export MOCK_DIR_WRITABLE="$MOCK_DIR/writable"
     mkdir -p "$MOCK_DIR_WRITABLE"
 
-    _JSON_PARTITIONS="$(yq -o json '.partitions' "${FIXTURES_DIR}/partition.yml" 2>/dev/null)"
+    # Cache JSON partitions to avoid redundant yq calls (Speed Optimization)
+    if [ -z "$_CACHED_JSON_PARTITIONS" ]; then
+        export _CACHED_JSON_PARTITIONS="$(yq -o json '.partitions' "${FIXTURES_DIR}/partition.yml" 2>/dev/null)"
+    fi
+    _JSON_PARTITIONS="$_CACHED_JSON_PARTITIONS"
     _VERIFY_CHECKSUMS=0
 
     connect_HD() {

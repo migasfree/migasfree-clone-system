@@ -810,7 +810,7 @@ clone_HD() {
 
 rescue() {
     local _DEVICE="$1"
-    local _MOUNT="/mnt/rescue"
+    local _MOUNT="${TEST_MOUNT:-/mnt/rescue}"
 
     mcs_log "Configuring Bootloader (Rescue)"
     mcs_log "=============================="
@@ -852,15 +852,35 @@ rescue() {
 
     if [ -n "$_DEV_EFI" ]; then
         mcs_log "Installing GRUB (UEFI)..."
-        # EFI mount for vars
+        # EFI mount for vars (only works if booted in UEFI mode)
         mount -t efivarfs efivarfs "${_MOUNT}/sys/firmware/efi/efivars" 2>/dev/null || :
+        
+        local _UEFI_SUCCESS=0
         if chroot "${_MOUNT}" which grub-install >/dev/null 2>&1; then
-            chroot "${_MOUNT}" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=grub --force 2>&1 | tee -a $MCS_LOG_FILE
-        else
-            mcs_log "  [WARNING] grub-install (UEFI) not found inside target, skipping chroot install..."
+            # Using --removable ensures it works even if NVRAM cannot be updated (BIOS mode cloning)
+            if chroot "${_MOUNT}" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=grub --force --removable 2>&1 | tee -a $MCS_LOG_FILE; then
+                _UEFI_SUCCESS=1
+            fi
         fi
-        mkdir -p "${_MOUNT}/boot/efi/EFI/BOOT"
-        cp "${_MOUNT}/boot/efi/EFI/grub/grubx64.efi" "${_MOUNT}/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>/dev/null
+
+        if [ "$_UEFI_SUCCESS" -ne 1 ]; then
+            mcs_log "  [WARNING] grub-install (UEFI) failed or not found inside target, trying from host..."
+            if grub-install --target=x86_64-efi --boot-directory="${_MOUNT}/boot" --efi-directory="${_MOUNT}/boot/efi" --removable --force 2>&1 | tee -a $MCS_LOG_FILE; then
+                _UEFI_SUCCESS=1
+            fi
+        fi
+
+        # Ensure the fallback boot path exists and has the EFI binary
+        if [ "$_UEFI_SUCCESS" -eq 1 ] && [ ! -f "${_MOUNT}/boot/efi/EFI/BOOT/BOOTX64.EFI" ]; then
+            mkdir -p "${_MOUNT}/boot/efi/EFI/BOOT"
+            # Try different possible source paths depending on the distro
+            for _EFI_SRC in "grub/grubx64.efi" "debian/grubx64.efi" "ubuntu/grubx64.efi" "alpine/grubx64.efi"; do
+                if [ -f "${_MOUNT}/boot/efi/EFI/${_EFI_SRC}" ]; then
+                    cp "${_MOUNT}/boot/efi/EFI/${_EFI_SRC}" "${_MOUNT}/boot/efi/EFI/BOOT/BOOTX64.EFI"
+                    break
+                fi
+            done
+        fi
     fi
 
     mcs_log "Updating GRUB configuration..."
