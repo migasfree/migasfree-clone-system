@@ -17,7 +17,7 @@ MCS is a lightweight, Alpine Linux-based imaging and deployment utility. It is d
 ## 📁 Key File Map
 
 - `/scripts/build.sh`: Orchestrates the image creation on the host.
-- `/scripts/qemu.sh`: QEMU launch script for verifying the build.
+- `/scripts/qemu-clone.sh`: QEMU launch script for verifying the build.
 - `/scripts/qemu-boot.sh`: QEMU script to verify if the cloned disk is bootable.
 - `/scripts/flash.sh`: Script to create the physical bootable USB drive.
 - `/defaults/overlay/usr/share/mcs/menu.sh`: The main TUI logic and entry point.

@@ -18,14 +18,14 @@ build:
 	sudo ./scripts/build.sh
 
 qemu-clone:
-	sudo ./scripts/qemu.sh $(ARGS)
+	sudo ./scripts/qemu-clone.sh $(ARGS)
 
 qemu-boot:
 	sudo ./scripts/qemu-boot.sh
 
 qemu-usb:
 	@[ "${DRIVE}" ] || ( echo "Error: DRIVE variable is not set. Usage: make qemu-usb DRIVE=/dev/sdX"; exit 1 )
-	sudo ./scripts/qemu.sh -d $(DRIVE)
+	sudo ./scripts/qemu-clone.sh -d $(DRIVE)
 
 flash:
 	sudo ./scripts/flash.sh
