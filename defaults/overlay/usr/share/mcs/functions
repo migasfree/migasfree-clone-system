@@ -24,7 +24,7 @@ mcs_log() {
     if [[ "$_MSG" == *"[DEBUG]"* ]] || [[ "$_MSG" == *"[INFO]"* ]]; then
         return
     fi
-    echo "$_MSG"
+    echo "$_MSG" >&2
 }
 
 load_partition_scheme() {
@@ -701,7 +701,7 @@ clone_partition_http() {
 
     local _REMOTE_URL="${_URL}${_NAME}.raw"
     mcs_log "  [+] Copying partition $_NAME via wget from ${_REMOTE_URL}..."
-    { wget -nv -O - "$_REMOTE_URL" 2>&1 1>&3 | tee /dev/stderr >> "$MCS_LOG_FILE"; } 3>&1 | pv -f | dd of="${_DEV_PART_TARGET}" bs=1M 2>>"$MCS_LOG_FILE"
+    { wget -nv -O - "$_REMOTE_URL" 2>&1 1>&3 | tee /dev/stderr >> "$MCS_LOG_FILE"; } 3>&1 | pv -f | dd of="${_DEV_PART_TARGET}" bs=1M conv=fsync 2>>"$MCS_LOG_FILE"
     local _RET=$?
     sync
     if [ $_RET -ne 0 ]; then return 1; fi
@@ -722,7 +722,7 @@ clone_partition_local() {
     fi
 
     mcs_log "  [+] Copying partition $_NAME from ${_RAW_FILE}..."
-    pv -f "$_RAW_FILE" | dd of="${_DEV_PART_TARGET}" bs=1M 2>>"$MCS_LOG_FILE"
+    pv -f "$_RAW_FILE" | dd of="${_DEV_PART_TARGET}" bs=1M conv=fsync 2>>"$MCS_LOG_FILE"
     local _RET=$?
     sync
     if [ $_RET -ne 0 ]; then return 1; fi
@@ -900,7 +900,12 @@ rescue() {
     done
     umount "${_MOUNT}/sys/firmware/efi/efivars" 2>/dev/null
     umount "${_MOUNT}/boot/efi" 2>/dev/null
+    # Clear the FAT dirty bit if it was cloned dirty or not closed cleanly
+    if [ -n "$_DEV_EFI" ]; then
+        dosfsck -a "$_DEV_EFI" >> "$MCS_LOG_FILE" 2>&1 || :
+    fi
     umount "${_MOUNT}" 2>/dev/null
+    sync
     rmdir "${_MOUNT}"
 
     disconnect_HD "${_DEVICE}"
