@@ -4,16 +4,19 @@ set -o pipefail
 # Migasfree Clone System - Boot Testing Script
 # This script launches QEMU using ONLY the target disk to verify it's bootable.
 
+# Default values (will be overridden by mcs.conf)
 ARTIFACTSDIR="./artifacts"
-TEST_RAM="2G"
-TEST_UEFI="false"
-OVMF_PATH="/usr/share/ovmf/OVMF.fd"
-TEST_TARGET_DISK="target-hd.qcow2"
 
-# Load configuration if exists
+# Load configuration
 if [ -f "mcs.conf" ]; then
     source "mcs.conf"
 fi
+
+# Fallbacks for mandatory testing variables if not in mcs.conf
+TEST_RAM="${TEST_RAM:-2G}"
+TEST_UEFI="${TEST_UEFI:-false}"
+OVMF_PATH="${OVMF_PATH:-/usr/share/ovmf/OVMF.fd}"
+TEST_TARGET_DISK="${TEST_TARGET_DISK:-target-hd.qcow2}"
 
 TARGET_PATH="${ARTIFACTSDIR}/${TEST_TARGET_DISK}"
 
@@ -36,6 +39,7 @@ QEMU_CMD="sudo qemu-system-x86_64 \
     -enable-kvm \
     -cpu host \
     -drive file=$TARGET_PATH,format=$TARGET_FORMAT \
+    ${TEST_UUID:+ -uuid $TEST_UUID} \
     -monitor unix:/tmp/qemu-monitor.sock,server,nowait"
 
 if [ "$TEST_UEFI" = "true" ]; then
