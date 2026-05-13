@@ -574,6 +574,9 @@ setting_verify_checksums() {
 
 quit() {
   clear
+  echo "MCS Terminal."
+  echo "Log file is available at: $MCS_LOG_FILE"
+  echo ""
   exit 0
 }
 
