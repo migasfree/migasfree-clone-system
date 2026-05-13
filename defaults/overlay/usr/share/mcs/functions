@@ -701,7 +701,17 @@ clone_partition_http() {
 
     local _REMOTE_URL="${_URL}${_NAME}.raw"
     mcs_log "  [+] Copying partition $_NAME via wget from ${_REMOTE_URL}..."
-    { wget -nv -O - "$_REMOTE_URL" 2>&1 1>&3 | tee /dev/stderr >> "$MCS_LOG_FILE"; } 3>&1 | pv -f | dd of="${_DEV_PART_TARGET}" bs=1M conv=fsync 2>>"$MCS_LOG_FILE"
+
+    local _EXPECTED_SIZE=""
+    if [ -f "$_CHECKSUMS_FILE" ]; then
+        _EXPECTED_SIZE=$(awk -v name="${_NAME}.raw" '$3 == name {print $2}' "$_CHECKSUMS_FILE" 2>/dev/null)
+    fi
+
+    if [ -n "$_EXPECTED_SIZE" ]; then
+        { wget -nv -O - "$_REMOTE_URL" 2>&1 1>&3 | tee /dev/stderr >> "$MCS_LOG_FILE"; } 3>&1 | pv -f -s "$_EXPECTED_SIZE" | dd of="${_DEV_PART_TARGET}" bs=1M conv=fsync 2>>"$MCS_LOG_FILE"
+    else
+        { wget -nv -O - "$_REMOTE_URL" 2>&1 1>&3 | tee /dev/stderr >> "$MCS_LOG_FILE"; } 3>&1 | pv -f | dd of="${_DEV_PART_TARGET}" bs=1M conv=fsync 2>>"$MCS_LOG_FILE"
+    fi
     local _RET=$?
     sync
     if [ $_RET -ne 0 ]; then return 1; fi
@@ -722,7 +732,17 @@ clone_partition_local() {
     fi
 
     mcs_log "  [+] Copying partition $_NAME from ${_RAW_FILE}..."
-    pv -f "$_RAW_FILE" | dd of="${_DEV_PART_TARGET}" bs=1M conv=fsync 2>>"$MCS_LOG_FILE"
+    
+    local _EXPECTED_SIZE=""
+    if [ -f "$_CHECKSUMS_FILE" ]; then
+        _EXPECTED_SIZE=$(awk -v name="${_NAME}.raw" '$3 == name {print $2}' "$_CHECKSUMS_FILE" 2>/dev/null)
+    fi
+
+    if [ -n "$_EXPECTED_SIZE" ]; then
+        pv -f -s "$_EXPECTED_SIZE" "$_RAW_FILE" | dd of="${_DEV_PART_TARGET}" bs=1M conv=fsync 2>>"$MCS_LOG_FILE"
+    else
+        pv -f "$_RAW_FILE" | dd of="${_DEV_PART_TARGET}" bs=1M conv=fsync 2>>"$MCS_LOG_FILE"
+    fi
     local _RET=$?
     sync
     if [ $_RET -ne 0 ]; then return 1; fi
