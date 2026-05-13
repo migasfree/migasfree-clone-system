@@ -931,6 +931,9 @@ rescue() {
         sed -i.bak "s|root=UUID=[^ ]*|root=PARTUUID=${_PARTUUID_SYSTEM}|g" "${_MOUNT}/boot/grub/grub.cfg" && rm -f "${_MOUNT}/boot/grub/grub.cfg.bak"
     fi
 
+    # Migasfree Sync (Optional)
+    migasfree_sync_target "${_MOUNT}"
+
     mcs_log "Syncing and unmounting..."
     sync
     sleep 2
@@ -979,4 +982,25 @@ free_nbd() {
     do
         nbd-client -d "/dev/nbd$i"
     done
+}
+
+# migasfree_sync_target /mnt/rescue
+migasfree_sync_target() {
+    local _MOUNT="$1"
+    
+    if chroot "${_MOUNT}" which migasfree >/dev/null 2>&1; then
+        mcs_log "  [+] Executing migasfree sync in target system..."
+        # Copy resolv.conf to target to ensure network access in chroot
+        cp /etc/resolv.conf "${_MOUNT}/etc/resolv.conf" 2>/dev/null || :
+        
+        # Execute sync
+        chroot "${_MOUNT}" migasfree sync >> "$MCS_LOG_FILE" 2>&1
+        if [ $? -eq 0 ]; then
+            mcs_log "  [OK] migasfree sync completed successfully"
+        else
+            mcs_log "  [WARNING] migasfree sync failed (see log for details)"
+        fi
+    else
+        mcs_log "  [DEBUG] migasfree sync not found in target system, skipping"
+    fi
 }
