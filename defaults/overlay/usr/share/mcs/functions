@@ -824,7 +824,11 @@ clone_HD() {
     fi
 
     rescue "$_ORIGIN_TARGET"
-    return $?
+    local _RES=$?
+    if [ $_RES -eq 0 ]; then
+        mcs_log "  [OK] Cloning and configuration finished successfully for $_ORIGIN_TARGET"
+    fi
+    return $_RES
 }
 
 
@@ -993,6 +997,13 @@ migasfree_sync_target() {
         # Copy resolv.conf to target to ensure network access in chroot
         cp /etc/resolv.conf "${_MOUNT}/etc/resolv.conf" 2>/dev/null || :
         
+        # Communicate tags for new machine
+        if [ -f "${_MOUNT}/etc/migasfree.image.tags" ]; then
+            local _TAGS=$(cat "${_MOUNT}/etc/migasfree.image.tags")
+            mcs_log "      Image Tags: ${_TAGS}"
+            chroot "${_MOUNT}" migasfree tags --communicate ${_TAGS} >> "$MCS_LOG_FILE" 2>&1
+        fi
+
         # Execute sync
         chroot "${_MOUNT}" migasfree sync >> "$MCS_LOG_FILE" 2>&1
         if [ $? -eq 0 ]; then
@@ -1000,6 +1011,11 @@ migasfree_sync_target() {
         else
             mcs_log "  [WARNING] migasfree sync failed (see log for details)"
         fi
+
+        local _HOST_NAME=$(chroot "${_MOUNT}" hostname)
+        mcs_log "  [INFO] Target hostname: ${_HOST_NAME}"
+
+
     else
         mcs_log "  [DEBUG] migasfree sync not found in target system, skipping"
     fi
