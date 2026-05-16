@@ -262,6 +262,9 @@ clone_menu(){
 	IMAGE=$(echo "$IMAGE" | awk '{print $1}')
         DISK=$(echo "/dev/$DISK" | awk '{print $1}')
         START_TIME=$(date +%s)
+        mcs_log "[+] Starting Local Clone..."
+        mcs_log "[+] Source: $IMAGES_DIR/$IMAGE"
+        mcs_log "[+] Target: $DISK"
         clone_HD "$IMAGES_DIR/$IMAGE" $DISK "$_PRESERVE_HOME"
         RET=$?
         END_TIME=$(date +%s)
@@ -269,7 +272,9 @@ clone_menu(){
         DURATION=$(printf '%dm %ds' $((ELAPSED/60)) $((ELAPSED%60)))
         
         if [ $RET -eq 0 ]; then
-            show_msg "Local Clone" "Completed!" "$IMAGE -> $DISK\n\nTime elapsed: $DURATION"
+            local _MSG="Successfully cloned $IMAGE to $DISK\n\nTime elapsed: $DURATION"
+            mcs_log "[OK] ${_MSG//\\n/ }"
+            show_msg "Local Clone" "Completed!" "$_MSG"
         else
             show_confirm "Local Clone" "Error" "The cloning process failed.\n\nWould you like to view the log now?" "yes"
             if [ $? -eq 0 ]; then
@@ -345,7 +350,9 @@ network_clone_menu() {
         DURATION=$(printf '%dm %ds' $((ELAPSED/60)) $((ELAPSED%60)))
         
         if [ $RET -eq 0 ]; then
-            show_msg "Network Clone" "Completed!" "Successfully cloned $FILE to /dev/$DISK\n\nTime elapsed: $DURATION"
+            local _MSG="Successfully cloned $FILE to /dev/$DISK\n\nTime elapsed: $DURATION"
+            mcs_log "[OK] ${_MSG//\\n/ }"
+            show_msg "Network Clone" "Completed!" "$_MSG"
         else
             show_confirm "Network Clone" "Error" "The cloning process failed.\n\nWould you like to view the log now?" "yes"
             if [ $? -eq 0 ]; then
