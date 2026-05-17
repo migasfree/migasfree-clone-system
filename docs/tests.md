@@ -83,7 +83,7 @@ tests/
     ├── partition_minimal.yml          # Scheme without HOME
     ├── partition_invalid.yml          # Invalid YAML
     ├── checksums.sha256               # Checksums file
-    ├── projects.json                  # Project index
+    ├── catalog.json                   # Project index
     ├── SYSTEM.raw                     # 1MB dummy image
     ├── HOME.raw                       # 1MB dummy image
     ├── lsblk-sda.json                 # Mock lsblk output (SATA)

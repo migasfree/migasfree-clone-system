@@ -104,8 +104,8 @@ case "$*" in
     *.raw*)
         exit 0
         ;;
-    *projects.json*)
-        [ -f "${MOCK_WGET_DIR}/projects.json" ]
+    *catalog.json*)
+        [ -f "${MOCK_WGET_DIR}/catalog.json" ]
         exit $?
         ;;
     *)

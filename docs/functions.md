@@ -41,10 +41,10 @@ To manually clone a project from a shell inside MCS:
 source /usr/share/mcs/functions
 
 # Clone a local project to the first SATA disk
-clone_HD /mcsdata/pool/mcs/inv.org_lnx-1 /dev/sda
+clone_HD /mcsdata/pool/mci/inv.org_lnx-1 /dev/sda
 
 # Clone a remote project directly via network streaming
-clone_HD http://your-server.org/pool/mcs/inv.org_lnx-1/ /dev/sda
+clone_HD http://your-server.org/pool/mci/inv.org_lnx-1/ /dev/sda
 ```
 
 ## 🛡️ Preserve HOME Logic

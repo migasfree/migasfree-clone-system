@@ -102,11 +102,11 @@ info_msg() {
 get_image() {
     local submenu="$1"
     local title="$2"
-    local _DESC_FILE="$IMAGES_DIR/projects.json"
+    local _DESC_FILE="$IMAGES_DIR/catalog.json"
     rm -f "$TEMPORAL_FILE"
     local INDEX=1
     for file in "$IMAGES_DIR"/*; do
-        [ "$(basename "$file")" = "projects.json" ] && continue
+        [ "$(basename "$file")" = "catalog.json" ] && continue
         if [ -d "$file" ]; then
             NAME=$(basename "$file")
             DESC=$(jq -r --arg n "$NAME" '.[] | select(.name == $n) | .description // empty' "$_DESC_FILE" 2>/dev/null)
@@ -134,9 +134,9 @@ get_image() {
 
 list_image() {
     local list=""
-    local _DESC_FILE="$IMAGES_DIR/projects.json"
+    local _DESC_FILE="$IMAGES_DIR/catalog.json"
     for file in "$IMAGES_DIR"/*; do
-        [ "$(basename "$file")" = "projects.json" ] && continue
+        [ "$(basename "$file")" = "catalog.json" ] && continue
         if [ -d "$file" ]; then
             NAME=$(basename "$file")
             DESC=$(jq -r --arg n "$NAME" '.[] | select(.name == $n) | .description // empty' "$_DESC_FILE" 2>/dev/null)
@@ -188,7 +188,7 @@ msg_was() {
     touch "$IMAGES_DIR/proj-a/partition.yml"
     mkdir -p "$IMAGES_DIR/proj-b"
     touch "$IMAGES_DIR/proj-b/partition.yml"
-    cat > "$IMAGES_DIR/projects.json" <<'JSON'
+    cat > "$IMAGES_DIR/catalog.json" <<'JSON'
 [{"name":"proj-a","enabled":true,"description":"Project Alpha"},{"name":"proj-b","enabled":true,"description":"Project Beta"}]
 JSON
 
@@ -200,7 +200,7 @@ JSON
 }
 
 
-@test "get_image: enumerates projects without descriptions when no projects.json" {
+@test "get_image: enumerates projects without descriptions when no catalog.json" {
     mkdir -p "$IMAGES_DIR/proj-a"
     touch "$IMAGES_DIR/proj-a/partition.yml"
     mkdir -p "$IMAGES_DIR/proj-b"
@@ -215,20 +215,20 @@ JSON
 }
 
 
-@test "get_image: skips projects.json in enumeration" {
+@test "get_image: skips catalog.json in enumeration" {
     mkdir -p "$IMAGES_DIR/proj-a"
     touch "$IMAGES_DIR/proj-a/partition.yml"
     mkdir -p "$IMAGES_DIR/proj-b"
     touch "$IMAGES_DIR/proj-b/partition.yml"
-    cat > "$IMAGES_DIR/projects.json" <<'JSON'
+    cat > "$IMAGES_DIR/catalog.json" <<'JSON'
 [{"name":"proj-a","enabled":true},{"name":"proj-b","enabled":true}]
 JSON
 
     run get_image "Test" "Test"
 
     file_content=$(cat "$TEMPORAL_FILE")
-    [[ "$file_content" != *"projects.json"* ]]
-    [[ "$file_content" != *"projects"* ]]
+    [[ "$file_content" != *"catalog.json"* ]]
+    [[ "$file_content" != *"catalog"* ]]
 }
 
 
@@ -241,9 +241,9 @@ JSON
 }
 
 
-@test "get_image: shows error when only projects.json exists" {
+@test "get_image: shows error when only catalog.json exists" {
     rm -f "$SHOW_MSG_FILE"
-    cat > "$IMAGES_DIR/projects.json" <<'JSON'
+    cat > "$IMAGES_DIR/catalog.json" <<'JSON'
 [{"name":"proj-a","enabled":true}]
 JSON
 
@@ -272,7 +272,7 @@ JSON
     touch "$IMAGES_DIR/proj-a/partition.yml"
     mkdir -p "$IMAGES_DIR/proj-b"
     touch "$IMAGES_DIR/proj-b/partition.yml"
-    cat > "$IMAGES_DIR/projects.json" <<'JSON'
+    cat > "$IMAGES_DIR/catalog.json" <<'JSON'
 [{"name":"proj-a","enabled":true,"description":"Alpha"},{"name":"proj-b","enabled":true,"description":"Beta"}]
 JSON
 
@@ -292,7 +292,7 @@ JSON
 }
 
 
-@test "list_image: lists projects without descriptions when no projects.json" {
+@test "list_image: lists projects without descriptions when no catalog.json" {
     rm -f "$SHOW_MSG_FILE"
     mkdir -p "$IMAGES_DIR/proj-a"
     touch "$IMAGES_DIR/proj-a/partition.yml"
@@ -313,7 +313,7 @@ JSON
     mkdir -p "$IMAGES_DIR/proj-b"
     touch "$IMAGES_DIR/proj-b/partition.yml"
     touch "$IMAGES_DIR/proj-b/SYSTEM.raw"
-    cat > "$IMAGES_DIR/projects.json" <<'JSON'
+    cat > "$IMAGES_DIR/catalog.json" <<'JSON'
 [{"name":"proj-a","enabled":true},{"name":"proj-b","enabled":true}]
 JSON
 
@@ -324,7 +324,7 @@ JSON
 
     [ ! -d "$IMAGES_DIR/proj-a" ]
     [ -d "$IMAGES_DIR/proj-b" ]
-    [ -f "$IMAGES_DIR/projects.json" ]
+    [ -f "$IMAGES_DIR/catalog.json" ]
 }
 
 

@@ -26,7 +26,7 @@ teardown() {
 }
 
 @test "clone_HD: HTTP Turbo Clone succeeds and writes SYSTEM and HOME" {
-    run clone_HD "http://server/pool/mcs/project/" "/dev/sda"
+    run clone_HD "http://server/pool/mci/project/" "/dev/sda"
     assert_success
 }
 
@@ -36,7 +36,7 @@ teardown() {
 }
 
 @test "clone_HD: preserve HOME skips HOME partition" {
-    run clone_HD "http://server/pool/mcs/project/" "/dev/sda" "true"
+    run clone_HD "http://server/pool/mci/project/" "/dev/sda" "true"
     assert_success
 }
 
@@ -47,7 +47,7 @@ teardown() {
 
 @test "clone_HD: returns error on HTTP source without partition.yml" {
     export MOCK_WGET_DIR=""
-    run clone_HD "http://server/pool/mcs/nonexistent/" "/dev/sda"
+    run clone_HD "http://server/pool/mci/nonexistent/" "/dev/sda"
     assert_failure
 }
 
@@ -57,7 +57,7 @@ teardown() {
 }
 
 @test "clone_HD: with preserve home succeeds" {
-    run clone_HD "http://server/pool/mcs/project/" "/dev/sda" "true"
+    run clone_HD "http://server/pool/mci/project/" "/dev/sda" "true"
     assert_success
 }
 

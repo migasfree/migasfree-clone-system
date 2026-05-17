@@ -146,18 +146,18 @@ main_menu() {
 fetch_remote_projects() {
     local _URL="$1"
 
-    wget -q --timeout=15 -O - "${_URL}projects.json" 2>/dev/null | jq -r '.[] | select(.enabled != false) | if .description then "\(.name) - \(.description)" else .name end' 2>/dev/null | awk '{print NR " \"" $0 "\""}'
+    wget -q --timeout=15 -O - "${_URL}catalog.json" 2>/dev/null | jq -r '.[] | select(.enabled != false) | if .description then "\(.name) - \(.description)" else .name end' 2>/dev/null | awk '{print NR " \"" $0 "\""}'
 }
 
 
 get_image() {
     local submenu="$1"
     local title="$2"
-    local _DESC_FILE="$IMAGES_DIR/projects.json"
+    local _DESC_FILE="$IMAGES_DIR/catalog.json"
     rm -f "$TEMPORAL_FILE"
     local INDEX=1
     for file in "$IMAGES_DIR"/*; do
-        [ "$(basename "$file")" = "projects.json" ] && continue
+        [ "$(basename "$file")" = "catalog.json" ] && continue
         if [ -d "$file" ]; then
             NAME=$(basename "$file")
             DESC=$(jq -r --arg n "$NAME" '.[] | select(.name == $n) | .description // empty' "$_DESC_FILE" 2>/dev/null)
@@ -291,7 +291,7 @@ network_clone_menu() {
         return
     fi
 
-    URL_PATH="http://$SERVER_URL/pool/mcs/"
+    URL_PATH="http://$SERVER_URL/pool/mci/"
     
     fetch_remote_projects "${URL_PATH}" > "$TEMPORAL_FILE"
 
@@ -368,9 +368,9 @@ network_clone_menu() {
 
 list_image() {
     local list=""
-    local _DESC_FILE="$IMAGES_DIR/projects.json"
+    local _DESC_FILE="$IMAGES_DIR/catalog.json"
     for file in "$IMAGES_DIR"/*; do
-        [ "$(basename "$file")" = "projects.json" ] && continue
+        [ "$(basename "$file")" = "catalog.json" ] && continue
         if [ -d "$file" ]; then
             NAME=$(basename "$file")
             DESC=$(jq -r --arg n "$NAME" '.[] | select(.name == $n) | .description // empty' "$_DESC_FILE" 2>/dev/null)
@@ -396,7 +396,7 @@ download_image() {
         return
     fi
 
-    URL_PATH="http://$SERVER_URL/pool/mcs/"
+    URL_PATH="http://$SERVER_URL/pool/mci/"
 
     fetch_remote_projects "${URL_PATH}" > "$TEMPORAL_FILE"
 
@@ -474,7 +474,7 @@ download_image() {
 
         if [ $_RET -eq 0 ]; then
             # Save project index locally for description lookups
-            wget -q --timeout=15 -O "$IMAGES_DIR/projects.json" "${URL_PATH}projects.json" 2>/dev/null || :
+            wget -q --timeout=15 -O "$IMAGES_DIR/catalog.json" "${URL_PATH}catalog.json" 2>/dev/null || :
             show_msg "Local Images" "Download" "Download project $FILE completed!"
         else
             show_msg "Local Images" "Download" "Download project $FILE failed!"

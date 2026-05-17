@@ -80,7 +80,7 @@ Project images are served via HTTP. Each project is a directory on the server co
 ### Directory Layout
 
 ```text
-http://<SERVER>/pool/mcs/
+http://<SERVER>/pool/mci/
 ├── ubuntu-22-04/
 │   ├── partition.yml          # Partition scheme (mandatory)
 │   ├── checksums.sha256       # Integrity hashes (optional)
@@ -91,10 +91,10 @@ http://<SERVER>/pool/mcs/
 │   ├── checksums.sha256
 │   ├── SYSTEM.raw
 │   └── HOME.raw
-└── projects.json              # Project index (mandatory)
+└── catalog.json              # Project index (mandatory)
 ```
 
-### `projects.json`
+### `catalog.json`
 
 This file indexes all available projects on the server. MCS fetches it instead of parsing the server's directory listing.
 

@@ -29,8 +29,8 @@ MCS is a lightweight, Alpine Linux-based imaging and deployment utility. It is d
 
 MCS has transitioned from single `.qcow2` files to **Project Directories**.
 
-- **Server Path**: `http://<SERVER_URL>/pool/mcs/<PROJECT_NAME>/`
-- **Local Path**: `/mcsdata/pool/mcs/<PROJECT_NAME>/`
+- **Server Path**: `http://<SERVER_URL>/pool/mci/<PROJECT_NAME>/`
+- **Local Path**: `/mcsdata/pool/mci/<PROJECT_NAME>/`
 - **Project Directories**:
   - `SYSTEM.raw`: Root filesystem partition.
   - `HOME.raw`: User or secondary partition.

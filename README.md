@@ -75,4 +75,4 @@ Once booted (either in QEMU or via USB), you will access the main TUI menu:
 
 ### Server Requirements
 
-MCS expects a `projects.json` file at the pool root (`http://<SERVER>/pool/mcs/projects.json`) listing available projects. See the [Server Setup](docs/server_setup.md) guide for the format and the [Architecture](docs/architecture.md) document for details on the project directory structure.
+MCS expects a `catalog.json` file at the pool root (`http://<SERVER>/pool/mci/catalog.json`) listing available projects. See the [Server Setup](docs/server_setup.md) guide for the format and the [Architecture](docs/architecture.md) document for details on the project directory structure.
