@@ -39,20 +39,22 @@ make qemu-usb DRIVE=/dev/sda
 ```
 
 ### 💽 Customizing the Source ISO Path
+
 By default, the script looks for the built ISO at `artifacts/mcs-<version>.iso`. If you want to run the test using a different/external ISO (e.g. downloaded from a server), you can override this path:
 
 - **Dynamically (in a single command)**:
   Pass the `SOURCE_IMG` environment variable via `sudo`:
+
   ```bash
   sudo SOURCE_IMG="/path/to/custom-mcs.iso" make qemu-clone
   ```
 
 - **Persistently (via config)**:
   Define `SOURCE_IMG` in your `mcs.conf` file:
+
   ```bash
   SOURCE_IMG="/path/to/custom-mcs.iso"
   ```
-
 
 **Available script options (via `ARGS="..."`):**
 
