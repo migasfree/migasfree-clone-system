@@ -7,7 +7,7 @@ set -o pipefail
 # Default values (will be overridden by mcs.conf)
 ARTIFACTSDIR="./artifacts"
 MCS_VERSION=$(cat VERSION)
-SOURCE_IMG="${ARTIFACTSDIR}/mcs-${MCS_VERSION}.iso"
+SOURCE_IMG="${SOURCE_IMG:-${ARTIFACTSDIR}/mcs-${MCS_VERSION}.iso}"
 
 # Load configuration
 if [ -f "mcs.conf" ]; then

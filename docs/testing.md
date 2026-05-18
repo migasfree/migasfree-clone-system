@@ -38,6 +38,22 @@ make qemu-clone ARGS="-m 4G -u"
 make qemu-usb DRIVE=/dev/sda
 ```
 
+### 💽 Customizing the Source ISO Path
+By default, the script looks for the built ISO at `artifacts/mcs-<version>.iso`. If you want to run the test using a different/external ISO (e.g. downloaded from a server), you can override this path:
+
+- **Dynamically (in a single command)**:
+  Pass the `SOURCE_IMG` environment variable via `sudo`:
+  ```bash
+  sudo SOURCE_IMG="/path/to/custom-mcs.iso" make qemu-clone
+  ```
+
+- **Persistently (via config)**:
+  Define `SOURCE_IMG` in your `mcs.conf` file:
+  ```bash
+  SOURCE_IMG="/path/to/custom-mcs.iso"
+  ```
+
+
 **Available script options (via `ARGS="..."`):**
 
 - `-m <ram>`: Memory for the VM (e.g., `4G`).
@@ -58,6 +74,7 @@ You can customize the virtual machine behavior by editing **`mcs.conf`**:
 
 ```bash
 # mcs.conf
+SOURCE_IMG="/path/to/custom-mcs.iso" # Optional: Custom source ISO override
 TEST_RAM="2G"             # RAM for the VM
 TEST_DISK_SIZE="8G"       # Size of the testing image
 TEST_UEFI="true"          # Set to true to test UEFI boot

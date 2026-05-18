@@ -18,7 +18,7 @@ build:
 	sudo ./scripts/build.sh
 
 qemu-clone:
-	sudo ./scripts/qemu-clone.sh $(ARGS)
+	sudo SOURCE_IMG="$(SOURCE_IMG)" ./scripts/qemu-clone.sh $(ARGS)
 
 qemu-boot:
 	sudo ./scripts/qemu-boot.sh $(ARGS)
