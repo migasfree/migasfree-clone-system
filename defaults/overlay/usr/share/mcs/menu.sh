@@ -75,6 +75,10 @@ SERVER_IP=$(yq '.settings.server_ip' < ${CONFIG_FILE})
 KEYMAP=$(yq '.settings.keymap' < ${CONFIG_FILE})
 VERIFY_CHECKSUMS=$(yq '.settings.verify_checksums // true' < ${CONFIG_FILE})
 _VERIFY_CHECKSUMS=$VERIFY_CHECKSUMS
+PROMOTED=$(yq '.settings.promoted // true' < ${CONFIG_FILE})
+if [ "$PROMOTED" != "false" ]; then
+    PROMOTED="true"
+fi
 TITLE="Migasfree Clone System ${TAG}"
 
 
@@ -146,7 +150,7 @@ main_menu() {
 fetch_remote_projects() {
     local _URL="$1"
 
-    wget -q --timeout=15 -O - "${_URL}catalog.json" 2>/dev/null | jq -r '.[] | select(.enabled != false) | if .description then "\(.name) - \(.description)" else .name end' 2>/dev/null | awk '{print NR " \"" $0 "\""}'
+    wget -q --timeout=15 -O - "${_URL}catalog.json" 2>/dev/null | jq -r --argjson p "$PROMOTED" '.[] | select(if $p then .enabled != false else .enabled == false end) | if .description then "\(.name) - \(.description)" else .name end' 2>/dev/null | awk '{print NR " \"" $0 "\""}'
 }
 
 
@@ -527,11 +531,12 @@ settings_menu() {
     while true; do
         CHOICE=$(dialog --clear --backtitle "${TITLE} > Settings" \
                       --title "Settings Menu" \
-                      --menu "" 15 50 4 \
+                      --menu "" 15 50 5 \
                       1 "Server: ${SERVER_URL}" \
                       2 "Server IP: ${SERVER_IP:-Dynamic (DNS)}" \
                       3 "Keymap: ${KEYMAP}" \
                       4 "Verify integrity: ${VERIFY_CHECKSUMS}" \
+                      5 "Promoted: ${PROMOTED}" \
                       3>&1 1>&2 2>&3)
 
         case $CHOICE in
@@ -539,6 +544,7 @@ settings_menu() {
             2) setting_ip ;;
             3) setting_keymap ;;
             4) setting_verify_checksums ;;
+            5) setting_promoted ;;
             *) return ;;
         esac
     done
@@ -577,6 +583,16 @@ setting_verify_checksums() {
     yq -i ".settings.verify_checksums = ${VERIFY_CHECKSUMS}" ${CONFIG_FILE}
     _VERIFY_CHECKSUMS=$VERIFY_CHECKSUMS
     show_msg "Settings" "Integrity verification" "Checksum verification is now: ${VERIFY_CHECKSUMS}"
+}
+
+setting_promoted() {
+    if [ "$PROMOTED" = "true" ]; then
+        PROMOTED="false"
+    else
+        PROMOTED="true"
+    fi
+    yq -i ".settings.promoted = ${PROMOTED}" ${CONFIG_FILE}
+    show_msg "Settings" "Promoted Images Filter" "Show only promoted images is now: ${PROMOTED}"
 }
 
 quit() {

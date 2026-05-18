@@ -87,6 +87,7 @@ Management tools for your USB drive:
 - Change the **Server IP** (DNS Override): Enter the static IP of your server if DNS resolution is not available in your current network. This will force the system to resolve the domain to that IP.
 - Change the **Keyboard Layout** (default is usually Spanish).
 - **Verify Integrity**: Enable or disable SHA-256 checksum verification after cloning. Disabling this saves time but reduces security/reliability on unstable networks.
+- **Promoted**: Toggle filtering of network images. Set to `true` (default) to only show stable/promoted images (where `enabled` is not `false` in the remote `catalog.json`). Set to `false` (for testing/development) to show only freshly built images (where `enabled: false`).
 
 ---
 
