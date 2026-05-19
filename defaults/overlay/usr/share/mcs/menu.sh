@@ -254,6 +254,9 @@ clone_menu(){
         show_confirm "Local Clone" "Preserve HOME?" "Do you want to preserve existing user data?" yes
         if [ $? -eq 0 ]; then
             _PRESERVE_HOME="true"
+            if ! check_local_users_safety "/dev/$_DISK_DEV"; then
+                return
+            fi
         fi
     fi
 
@@ -330,6 +333,9 @@ network_clone_menu() {
         show_confirm "Network Clone" "Preserve HOME?" "Do you want to preserve existing user data?" yes
         if [ $? -eq 0 ]; then
             _PRESERVE_HOME="true"
+            if ! check_local_users_safety "/dev/$_DISK_DEV"; then
+                return
+            fi
         fi
     fi
 

@@ -28,6 +28,7 @@ setup_mocks() {
     _create_mock_sleep
     _create_mock_tee
     _create_mock_e2fsprogs
+    _create_mock_dialog
 
     export PATH="$MOCK_DIR:$PATH"
 }
@@ -253,6 +254,12 @@ _create_mock_e2fsprogs() {
         echo '#!/bin/bash' > "$MOCK_DIR/$cmd"
         chmod +x "$MOCK_DIR/$cmd"
     done
+}
+
+_create_mock_dialog() {
+    echo '#!/bin/bash
+exit 0' > "$MOCK_DIR/dialog"
+    chmod +x "$MOCK_DIR/dialog"
 }
 
 setup_nbd_sys_class() {

@@ -73,6 +73,7 @@ tests/
 │   ├── test_make_fstab.bats           # fstab generation
 │   ├── test_clone_HD.bats             # clone_HD full-flow (SATA + NVMe)
 │   ├── test_multiple_projects_usb.bats  # Multi-project USB listing/deletion
+│   ├── test_preserve_users.bats       # User backup/restore, MIGASFREE-ADMIN safety
 │   ├── test_rescue_uefi.bats          # UEFI GRUB install, BOOTX64.EFI, PARTUUID
 │   └── test_wipe_disk.bats            # Cloning on pre-partitioned disks
 ├── helpers/
@@ -177,5 +178,10 @@ Custom assertions in `tests/helpers/assert.bash`:
 | `load_partition_scheme` | 8 | ✅ |
 | `verify_file_checksum`, `verify_partition_checksum` | 6 | ✅ |
 | `make_fstab` | 9 | ✅ |
-| `clone_HD` | 7 | ✅ |
-| **Total** | **66** | ✅ |
+| `clone_HD` (including wipe/pre-partitioned disks) | 14 | ✅ |
+| `get_image`, `list_image`, `delete_image`, `clone_menu` | 9 | ✅ |
+| `rescue` (UEFI, BIOS, hybrid boot, PARTUUID) | 13 | ✅ |
+| `make_partitions`, `make_file_systems` | 3 | ✅ |
+| `backup_local_users`, `restore_local_users`, `add_user_to_group` | 7 | ✅ |
+| `check_local_users_safety` (MIGASFREE-ADMIN) | 3 | ✅ |
+| **Total** | **114** | ✅ |

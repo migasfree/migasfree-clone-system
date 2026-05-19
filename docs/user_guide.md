@@ -68,10 +68,12 @@ When you select a project for cloning, MCS automatically checks if the destinati
 
 - **Option**: If a compatible layout is detected, you will be asked if you want to **Preserve existing user data**.
 - **Behavior**:
-  - **Yes**: Only the Operating System (SYSTEM) is updated. Your `/home` partition and personal files remain untouched.
+  - **Yes**: Only the Operating System (SYSTEM) is updated. Your `/home` partition and personal files remain untouched. User accounts are automatically preserved and merged into the new system.
   - **No**: The entire disk is wiped and re-partitioned. **All data is lost.**
 - **Automatic Protection**: If the system detects that the destination disk is new or has a different partition structure, it will skip this question and perform a clean installation for safety.
 
+> [!IMPORTANT]
+> **Centralized Admin Safety Check**: When you choose to preserve user data, MCS verifies that the UID 1000 user on the target disk is the centralized Migasfree administrator (tagged `MIGASFREE-ADMIN`). If UID 1000 belongs to a standard local user, the cloning process is **immediately aborted** and an error message is shown. The administrator must manually change that user's UID before retrying. Additionally, when switching between different MCIs (which have different administrative usernames like `admin` and `senior`), MCS automatically deletes the old administrator account, old groups, and its home directory (e.g. `/home/admin`) from the target disk. It then creates and initializes the new administrator's home directory (e.g. `/home/senior`, populating it from `/etc/skel` with correct ownership `1000:1000`), ensuring a clean administrative transition and successful graphical environment (X11) launch upon the first boot.
 
 ### 📁 Local Images
 

@@ -62,12 +62,21 @@ sequenceDiagram
     participant T as Target Disk
 
     U->>M: Select "Clone"
-    M->>F: make_partitions(Target)
-    F->>T: Create GPT & Partitions (EFI, BIOS, SYSTEM, HOME)
+    U->>M: Select destination disk
+    U->>M: Select "Preserve HOME? Yes"
+    M->>F: check_local_users_safety(Target)
+    alt UID 1000 is standard user
+        F-->>M: ABORT (show error dialog)
+        M-->>U: Return to menu
+    else UID 1000 is MIGASFREE-ADMIN or absent
+        F-->>M: OK
+    end
+    M->>F: backup_local_users(Target)
     M->>F: clone_HD(Source, Target)
     S->>T: Stream SYSTEM.raw via dd
-    S->>T: Stream HOME.raw via dd
     F->>T: expand_filesystem(Target)
+    M->>F: restore_local_users(Target, Disk)
+    Note over F,T: Unconditionally protect UID 1000 & Fix missing home dirs
     M->>F: rescue(Target)
     F->>T: Install GRUB & Fix fstab
     M->>U: Show "Success"

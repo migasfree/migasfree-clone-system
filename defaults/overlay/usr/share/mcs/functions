@@ -777,6 +777,10 @@ clone_HD() {
     _TARGET=$(connect_HD "$2")
     [ -z "$_TARGET" ] && { echo "  [ERROR] Failed to connect target: $2" >&2; disconnect_HD "$_SOURCE"; return 1; }
 
+    if [ "$_PRESERVE_HOME" = "true" ]; then
+        backup_local_users "$_TARGET" || :
+    fi
+
     mcs_log "[DEBUG] Connected Source: $_SOURCE"
     mcs_log "[DEBUG] Connected Target: $_TARGET"
 
@@ -845,6 +849,9 @@ rescue() {
 
     mkdir -p "${_MOUNT}"
     mount -t auto "${_DEV_SYSTEM}" "${_MOUNT}" >> "$MCS_LOG_FILE" 2>&1
+
+    # Restore preserved user accounts and groups
+    restore_local_users "${_MOUNT}" "$_DEVICE"
 
     if [ -n "$_DEV_EFI" ]; then
         mkdir -p "${_MOUNT}/boot/efi"
@@ -1018,5 +1025,292 @@ migasfree_sync_target() {
 
     else
         mcs_log "  [DEBUG] migasfree sync not found in target system, skipping"
+    fi
+}
+
+
+# backup_local_users "/dev/nbd0"
+backup_local_users() {
+    local _DEVICE="$1"
+    local _DEV_SYSTEM=$(part_by_name "$_DEVICE" SYSTEM)
+    
+    if [ -z "$_DEV_SYSTEM" ] || [ ! -e "$_DEV_SYSTEM" ]; then
+        mcs_log "  [WARNING] No SYSTEM partition found to backup user accounts"
+        return 1
+    fi
+    local _TMP_MOUNT="/tmp/mnt_old_system"
+    mkdir -p "$_TMP_MOUNT"
+    
+    if mount -o ro "$_DEV_SYSTEM" "$_TMP_MOUNT" 2>/dev/null; then
+        mcs_log "  [+] Backup up pre-existing local user accounts..."
+        mkdir -p /tmp/mcs_user_backup
+        cp "$_TMP_MOUNT/etc/passwd" /tmp/mcs_user_backup/passwd 2>/dev/null
+        cp "$_TMP_MOUNT/etc/shadow" /tmp/mcs_user_backup/shadow 2>/dev/null
+        cp "$_TMP_MOUNT/etc/group" /tmp/mcs_user_backup/group 2>/dev/null
+        cp "$_TMP_MOUNT/etc/gshadow" /tmp/mcs_user_backup/gshadow 2>/dev/null
+        
+        umount "$_TMP_MOUNT"
+        rmdir "$_TMP_MOUNT"
+        return 0
+    else
+        mcs_log "  [WARNING] Could not mount old SYSTEM partition, skipping user account backup"
+        rmdir "$_TMP_MOUNT"
+        return 1
+    fi
+}
+
+# add_user_to_group "username" "groupname" "/mnt/rescue/etc/group"
+add_user_to_group() {
+    local _USER="$1"
+    local _GROUP="$2"
+    local _TARGET_FILE="$3"
+    
+    [ ! -f "$_TARGET_FILE" ] && return 0
+    
+    if grep -q "^${_GROUP}:" "$_TARGET_FILE"; then
+        # Match user inside group members (last field)
+        # To prevent matching a user name as substring (e.g. 'al' matching 'alberto'), we use \< and \>
+        if ! grep -E -q "^${_GROUP}:[^:]*:[^:]*:(.*,)?${_USER}(,.*)?$" "$_TARGET_FILE"; then
+            # Append user to group line (ends with ':') or comma-separated list
+            sed -i -E "/^${_GROUP}:/ { /:$/! s/$/,$_USER/; /:$/ s/$/$_USER/ }" "$_TARGET_FILE"
+        fi
+    fi
+}
+
+# restore_local_users "/mnt/rescue"
+restore_local_users() {
+    local _MOUNT="$1"
+    local _DEVICE="$2"
+    local _BACKUP_DIR="/tmp/mcs_user_backup"
+    
+    if [ ! -f "$_BACKUP_DIR/passwd" ] || [ ! -f "$_BACKUP_DIR/shadow" ]; then
+        return 1
+    fi
+    
+    mcs_log "  [+] Merging preserved local user accounts (UID/GID >= 1000)..."
+    
+    # Ensure line endings in target database files are correct
+    for file in passwd shadow group gshadow; do
+        if [ -f "${_MOUNT}/etc/$file" ]; then
+            [ -n "$(tail -c1 "${_MOUNT}/etc/$file" 2>/dev/null)" ] && echo "" >> "${_MOUNT}/etc/$file"
+        fi
+    done
+    
+    # 0. Snapshot UID 1000 admin from MCI image (authoritative — must always survive)
+    local _MCI_ADMIN_PASSWD=$(awk -F: '$3 == 1000' "${_MOUNT}/etc/passwd" 2>/dev/null)
+    local _MCI_ADMIN_SHADOW=""
+    local _MCI_ADMIN_USER=""
+    if [ -n "$_MCI_ADMIN_PASSWD" ]; then
+        _MCI_ADMIN_USER=$(echo "$_MCI_ADMIN_PASSWD" | cut -d: -f1)
+        _MCI_ADMIN_SHADOW=$(grep "^${_MCI_ADMIN_USER}:" "${_MOUNT}/etc/shadow" 2>/dev/null)
+        mcs_log "      [PROTECT] MCI admin UID 1000: $_MCI_ADMIN_USER (will be enforced)"
+    fi
+    
+    # 0b. Temporarily mount target HOME partition if _DEVICE is provided
+    local _DEV_HOME=""
+    local _MOUNTED_HOME="false"
+    if [ -n "$_DEVICE" ] && [ -b "$_DEVICE" ]; then
+        _DEV_HOME=$(part_by_name "$_DEVICE" HOME)
+        if [ -n "$_DEV_HOME" ] && [ -e "$_DEV_HOME" ]; then
+            mkdir -p "${_MOUNT}/home"
+            # Unmount first if already mounted to avoid busy mounts
+            umount "${_MOUNT}/home" >/dev/null 2>&1 || :
+            if mount -t auto "${_DEV_HOME}" "${_MOUNT}/home" >> "$MCS_LOG_FILE" 2>&1; then
+                _MOUNTED_HOME="true"
+                mcs_log "      [INFO] Mounted target HOME partition at ${_MOUNT}/home"
+            fi
+        fi
+    fi
+    
+    # 0c. Clean up old admin user (UID 1000) and its home directory if different from the new one
+    local _BACKUP_ADMIN_ENTRY=$(awk -F: '$3 == 1000' "$_BACKUP_DIR/passwd" 2>/dev/null)
+    if [ -n "$_BACKUP_ADMIN_ENTRY" ]; then
+        local _BACKUP_ADMIN_USER=$(echo "$_BACKUP_ADMIN_ENTRY" | cut -d: -f1)
+        local _BACKUP_ADMIN_HOME=$(echo "$_BACKUP_ADMIN_ENTRY" | cut -d: -f6)
+        
+        if [ -n "$_MCI_ADMIN_USER" ] && [ "$_BACKUP_ADMIN_USER" != "$_MCI_ADMIN_USER" ]; then
+            mcs_log "      [CLEANUP] Deleting old admin user account and home directory: $_BACKUP_ADMIN_USER"
+            
+            # Delete its home directory from the mounted target HOME/SYSTEM partition
+            if [ -n "$_BACKUP_ADMIN_HOME" ] && [ "$_BACKUP_ADMIN_HOME" != "/" ]; then
+                local _REAL_BACKUP_HOME="${_MOUNT}${_BACKUP_ADMIN_HOME}"
+                if [ -d "$_REAL_BACKUP_HOME" ]; then
+                    rm -rf "$_REAL_BACKUP_HOME"
+                    mcs_log "      [CLEANUP] Deleted old admin home: $_REAL_BACKUP_HOME"
+                fi
+            fi
+            
+            # Explicitly remove any remnants of the old admin user name from passwd and shadow
+            sed -i "/^${_BACKUP_ADMIN_USER}:/d" "${_MOUNT}/etc/passwd"
+            sed -i "/^${_BACKUP_ADMIN_USER}:/d" "${_MOUNT}/etc/shadow"
+            
+            # Explicitly remove any remnants of the old admin group name from group and gshadow
+            sed -i "/^${_BACKUP_ADMIN_USER}:/d" "${_MOUNT}/etc/group"
+            [ -f "${_MOUNT}/etc/gshadow" ] && sed -i "/^${_BACKUP_ADMIN_USER}:/d" "${_MOUNT}/etc/gshadow"
+        fi
+    fi
+    
+    # 0d. Ensure the admin's home directory exists and has correct ownership (1000:1000)
+    if [ -n "$_MCI_ADMIN_USER" ] && [ -n "$_MCI_ADMIN_PASSWD" ]; then
+        local _ADMIN_HOME_DIR=$(echo "$_MCI_ADMIN_PASSWD" | cut -d: -f6)
+        if [ -n "$_ADMIN_HOME_DIR" ]; then
+            local _REAL_ADMIN_HOME="${_MOUNT}${_ADMIN_HOME_DIR}"
+            if [ ! -d "$_REAL_ADMIN_HOME" ]; then
+                mcs_log "      [INFO] Creating missing home directory for admin: $_REAL_ADMIN_HOME"
+                mkdir -p "$_REAL_ADMIN_HOME"
+                if [ -d "${_MOUNT}/etc/skel" ]; then
+                    cp -rT "${_MOUNT}/etc/skel" "$_REAL_ADMIN_HOME" 2>/dev/null || :
+                fi
+                chown -R 1000:1000 "$_REAL_ADMIN_HOME" 2>/dev/null || :
+                chmod 750 "$_REAL_ADMIN_HOME" 2>/dev/null || :
+            else
+                # If home folder already exists, make sure the current admin owns it
+                mcs_log "      [INFO] Fixing ownership for existing admin home directory: $_REAL_ADMIN_HOME"
+                chown -R 1000:1000 "$_REAL_ADMIN_HOME" 2>/dev/null || :
+            fi
+        fi
+    fi
+    
+    # 1. Merge passwd and shadow entries (UID >= 1000 and UID < 60000)
+    local _USERS=$(awk -F: '$3 >= 1000 && $3 < 60000 {print $1}' "$_BACKUP_DIR/passwd" 2>/dev/null)
+    for user in $_USERS; do
+        [ "$user" = "nobody" ] && continue
+        
+        # Skip restoring centralized administrative users (they are managed in master MCI image)
+        local _GECOS=$(grep "^${user}:" "$_BACKUP_DIR/passwd" | cut -d: -f5)
+        if echo "$_GECOS" | grep -q -i "MIGASFREE-ADMIN"; then
+            mcs_log "      Skipping centralized admin restoration: $user (using MCI credentials)"
+            continue
+        fi
+        
+        # Skip any backup user whose UID is 1000 if we are enforcing a target MCI admin
+        if [ -n "$_MCI_ADMIN_USER" ]; then
+            local _BACKUP_UID=$(grep "^${user}:" "$_BACKUP_DIR/passwd" | cut -d: -f3)
+            if [ "$_BACKUP_UID" = "1000" ]; then
+                mcs_log "      Skipping UID 1000 user: $user (reserved for MCI admin: $_MCI_ADMIN_USER)"
+                continue
+            fi
+        fi
+        
+        local _PASSWD_ENTRY=$(grep "^${user}:" "$_BACKUP_DIR/passwd")
+        local _SHADOW_ENTRY=$(grep "^${user}:" "$_BACKUP_DIR/shadow")
+        if [ -n "$_PASSWD_ENTRY" ] && [ -n "$_SHADOW_ENTRY" ]; then
+            # Deduplicate by username - remove existing target entries for the user
+            sed -i "/^${user}:/d" "${_MOUNT}/etc/passwd"
+            sed -i "/^${user}:/d" "${_MOUNT}/etc/shadow"
+            
+            echo "$_PASSWD_ENTRY" >> "${_MOUNT}/etc/passwd"
+            echo "$_SHADOW_ENTRY" >> "${_MOUNT}/etc/shadow"
+            mcs_log "      Restored user: $user"
+        fi
+    done
+    
+    # 1b. Enforce MCI admin UID 1000 if it exists — guarantee it is present and unmodified
+    if [ -n "$_MCI_ADMIN_PASSWD" ] && [ -n "$_MCI_ADMIN_SHADOW" ]; then
+        # Remove any entry that may have taken UID 1000 or the admin username
+        sed -i "/^${_MCI_ADMIN_USER}:/d" "${_MOUNT}/etc/passwd"
+        sed -i "/^${_MCI_ADMIN_USER}:/d" "${_MOUNT}/etc/shadow"
+        # Also remove any other user that may have ended up with UID 1000
+        awk -F: '$3 != 1000' "${_MOUNT}/etc/passwd" > "${_MOUNT}/etc/passwd.tmp" && \
+            mv "${_MOUNT}/etc/passwd.tmp" "${_MOUNT}/etc/passwd"
+        
+        echo "$_MCI_ADMIN_PASSWD" >> "${_MOUNT}/etc/passwd"
+        echo "$_MCI_ADMIN_SHADOW" >> "${_MOUNT}/etc/shadow"
+        mcs_log "      [OK] MCI admin enforced: $_MCI_ADMIN_USER (UID 1000)"
+    fi
+    
+    # 2. Merge group and gshadow entries (GID >= 1000 and GID < 60000)
+    local _GROUPS=$(awk -F: '$3 >= 1000 && $3 < 60000 {print $1}' "$_BACKUP_DIR/group" 2>/dev/null)
+    for group in $_GROUPS; do
+        [ "$group" = "nogroup" ] && continue
+        
+        local _GROUP_ENTRY=$(grep "^${group}:" "$_BACKUP_DIR/group")
+        local _GSHADOW_ENTRY=$(grep "^${group}:" "$_BACKUP_DIR/gshadow")
+        if [ -n "$_GROUP_ENTRY" ]; then
+            # Skip restoring groups whose GID is 1000 (belongs to MCI admin) if we are enforcing a target MCI admin
+            if [ -n "$_MCI_ADMIN_USER" ]; then
+                local _BACKUP_GID=$(echo "$_GROUP_ENTRY" | cut -d: -f3)
+                if [ "$_BACKUP_GID" = "1000" ]; then
+                    mcs_log "      Skipping GID 1000 group: $group (reserved for MCI admin group)"
+                    continue
+                fi
+            fi
+            
+            sed -i "/^${group}:/d" "${_MOUNT}/etc/group"
+            echo "$_GROUP_ENTRY" >> "${_MOUNT}/etc/group"
+            
+            if [ -n "$_GSHADOW_ENTRY" ] && [ -f "${_MOUNT}/etc/gshadow" ]; then
+                sed -i "/^${group}:/d" "${_MOUNT}/etc/gshadow"
+                echo "$_GSHADOW_ENTRY" >> "${_MOUNT}/etc/gshadow"
+            fi
+            mcs_log "      Restored group: $group"
+        fi
+    done
+    
+    # 3. Preserve supplemental memberships in system groups (GID < 1000)
+    local _SYSTEM_GROUPS=$(awk -F: '$3 < 1000 {print $1}' "$_BACKUP_DIR/group" 2>/dev/null)
+    local _USERS_LIST=" $(echo $_USERS | tr '\n' ' ') "
+    for group in $_SYSTEM_GROUPS; do
+        local _MEMBERS=$(grep "^${group}:" "$_BACKUP_DIR/group" | cut -d: -f4 | tr ',' ' ')
+        for member in $_MEMBERS; do
+            # Verify if member is one of our preserved standard users (UID >= 1000)
+            case "$_USERS_LIST" in
+                *" $member "*)
+                    add_user_to_group "$member" "$group" "${_MOUNT}/etc/group"
+                    add_user_to_group "$member" "$group" "${_MOUNT}/etc/gshadow"
+                    ;;
+            esac
+        done
+    done
+    
+    # 4. Enforce strict permissions
+    chmod 644 "${_MOUNT}/etc/passwd" "${_MOUNT}/etc/group"
+    chmod 600 "${_MOUNT}/etc/shadow"
+    [ -f "${_MOUNT}/etc/gshadow" ] && chmod 600 "${_MOUNT}/etc/gshadow"
+    
+    # Clean up backup
+    rm -rf "$_BACKUP_DIR"
+    
+    if [ "$_MOUNTED_HOME" = "true" ]; then
+        umount "${_MOUNT}/home" >> "$MCS_LOG_FILE" 2>&1 || :
+        mcs_log "      [INFO] Unmounted target HOME partition"
+    fi
+    return 0
+}
+
+# check_local_users_safety "/dev/sda"
+check_local_users_safety() {
+    local _DEV="$1"
+    local _MOUNT_DIR="/tmp/mcs_safety_mount"
+    
+    # Find SYSTEM partition
+    local _PART=$(part_by_label_on_device "$_DEV" "SYSTEM")
+    if [ -z "$_PART" ]; then
+        # If no SYSTEM partition exists, it is safe to proceed (e.g. fresh disk)
+        return 0
+    fi
+    
+    mkdir -p "$_MOUNT_DIR"
+    if mount -o ro "$_PART" "$_MOUNT_DIR" 2>/dev/null; then
+        local _RET=0
+        if [ -f "$_MOUNT_DIR/etc/passwd" ]; then
+            local _UID1000_LINE=$(awk -F: '$3 == 1000 {print $1 ":" $5}' "$_MOUNT_DIR/etc/passwd" 2>/dev/null)
+            if [ -n "$_UID1000_LINE" ]; then
+                local _B_USER=$(echo "$_UID1000_LINE" | cut -d: -f1)
+                local _B_GECOS=$(echo "$_UID1000_LINE" | cut -d: -f2)
+                if ! echo "$_B_GECOS" | grep -q -i "MIGASFREE-ADMIN"; then
+                    mcs_log "  [ERROR] Local user '$_B_USER' has UID 1000 but is not MIGASFREE-ADMIN!"
+                    dialog --title "ERROR: UID 1000 ocupado" \
+                           --msgbox "El usuario local '$_B_USER' tiene el UID 1000 y no es el administrador central.\n\nPor seguridad, cambie el UID de '$_B_USER' manualmente antes de volver a clonar." 10 50
+                    _RET=1
+                fi
+            fi
+        fi
+        umount "$_MOUNT_DIR"
+        rm -rf "$_MOUNT_DIR"
+        return $_RET
+    else
+        rm -rf "$_MOUNT_DIR"
+        return 0
     fi
 }

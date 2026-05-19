@@ -33,6 +33,15 @@ The `functions` script (located at `/usr/share/mcs/functions` in the booted syst
 | `verify_partition_checksum` | `device, partition_name` | Verifies the SHA-256 checksum of a written partition against the `checksums.sha256` file from the project. Reads the expected size from the checksums file. |
 | `rescue` | `device` | Reinstalls GRUB and regenerates `fstab` and `initramfs` on a target system. |
 
+### User Preservation
+
+| Function | Arguments | Description |
+| :--- | :--- | :--- |
+| `backup_local_users` | `device` | Mounts the target SYSTEM partition and copies `/etc/passwd`, `/etc/shadow`, `/etc/group`, and `/etc/gshadow` to `/tmp/mcs_user_backup/`. |
+| `restore_local_users` | `mount_point, device?` | Merges backed-up local users (UID ≥ 1000, excluding `nobody`) into the new system. Handles UID/GID collision cleanup, group creation, and supplemental group membership restoration. Unconditionally protects the target's UID 1000 administrator user, resolving any missing home directories on the preserved HOME partition by creating and initializing them from `/etc/skel`. |
+| `add_user_to_group` | `group_file, group, user` | Appends a user to a group's member list in the given group file, avoiding duplicates. |
+| `check_local_users_safety` | `device` | Mounts the target SYSTEM partition read-only and checks if UID 1000 is occupied by a standard (non-admin) user. Returns `1` and shows an error dialog if a conflict is found. Called from the TUI before cloning when Preserve HOME is selected. |
+
 ## 🛠️ Usage Example
 
 To manually clone a project from a shell inside MCS:
@@ -72,9 +81,33 @@ When `PRESERVE_HOME` is active:
    - **FSTAB**: A new `/etc/fstab` is generated on-the-fly using `PARTUUID`s to ensure the system boots correctly regardless of device name changes (`sda` vs `nvme`).
    - **GRUB (BIOS)**: Reinstalled using the `--target=i386-pc` and `--force` flags.
    - **GRUB (UEFI)**: If an `EFI` partition is detected by label, it is mounted and the EFI binaries are re-synchronized via `grub-install --target=x86_64-efi`.
+4. **User Account Preservation** (when `PRESERVE_HOME` is active):
+   - Before cloning, `backup_local_users` saves the target disk's user databases.
+   - After cloning, `restore_local_users` merges backed-up standard users into the fresh system image.
+
+## 🔐 Centralized Admin Protection (`MIGASFREE-ADMIN`)
+
+To ensure that the organization's central administrator (UID 1000) is never lost, broken, or mixed with normal users during cloning:
+
+### 1. Safety Check (Before Cloning)
+
+Before starting, MCS checks the existing disk:
+
+- **If UID 1000 is a normal user (not an administrator)**: The installation stops immediately for safety to avoid destroying user data.
+- **If UID 1000 is a Migasfree administrator or empty**: The installation continues safely.
+
+### 2. Administrator Restoration (After Cloning)
+
+When cloning finishes and user accounts are restored:
+
+- **The New Admin Wins**: The administrator user that comes with the new MCI (e.g., `senior`) is installed on the disk. The old backup administrator is skipped.
+- **Clean Old Admin Sweep**: If the old administrator has a different name (e.g., `admin` instead of `senior`), all its traces (user account, groups, and the `/home/admin` folder) are **completely deleted** from the disk to avoid clutter or login errors.
+- **Fresh Start for the New Admin**: If the new administrator's folder (e.g., `/home/senior`) does not exist on the preserved `/home` partition, MCS automatically creates it, copies clean default settings (from `/etc/skel`), and sets correct permissions (`1000:1000`) so the graphical desktop (X11) starts perfectly.
+- **Normal Users are Preserved**: All other standard local users are merged back normally without modifications.
 
 ## ⚠️ Important Notes
 
 - **RAW Partition Streaming**: The library is optimized for projects containing `SYSTEM.raw` and `HOME.raw`.
 - **Root Required**: Almost all functions require root privileges.
 - **Safety**: By default, `clone_HD` is destructive; it will wipe the partition table unless `PRESERVE_HOME` is validated and requested.
+- **Admin Convention**: All MCI images must ship with UID 1000 as the admin user, tagged `MIGASFREE-ADMIN` in the GECOS field.
