@@ -89,7 +89,7 @@ Project images are served via HTTP. Each project is a directory on the server co
 ### Directory Layout
 
 ```text
-http://<SERVER>/pool/mci/
+http://<SERVER>/pool/mgi/
 ├── ubuntu-22-04/
 │   ├── partition.yml          # Partition scheme (mandatory)
 │   ├── checksums.sha256       # Integrity hashes (optional)

@@ -298,7 +298,7 @@ network_clone_menu() {
         return
     fi
 
-    URL_PATH="http://$SERVER_URL/pool/mci/"
+    URL_PATH="http://$SERVER_URL/pool/mgi/"
     
     fetch_remote_projects "${URL_PATH}" > "$TEMPORAL_FILE"
 
@@ -406,7 +406,7 @@ download_image() {
         return
     fi
 
-    URL_PATH="http://$SERVER_URL/pool/mci/"
+    URL_PATH="http://$SERVER_URL/pool/mgi/"
 
     fetch_remote_projects "${URL_PATH}" > "$TEMPORAL_FILE"
 

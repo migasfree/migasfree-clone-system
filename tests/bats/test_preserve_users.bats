@@ -177,7 +177,7 @@ EOF
     mkdir -p /tmp/mcs_user_backup
     cp "${OLD_SYSTEM_DIR}/etc"/* /tmp/mcs_user_backup/
 
-    # Setup the MCI target passwd with the master admin user tagged
+    # Setup the MGI target passwd with the master admin user tagged
     cat <<EOF > "${NEW_SYSTEM_DIR}/etc/passwd"
 root:x:0:0:root:/root:/bin/bash
 nobody:x:65534:65534:nobody:/:/sbin/nologin
@@ -257,7 +257,7 @@ EOF
     rm -rf "/tmp/mcs_safety_mount"
 }
 
-@test "restore_local_users: enforces MCI admin when backup has untagged UID 1000 user" {
+@test "restore_local_users: enforces MGI admin when backup has untagged UID 1000 user" {
     # Backup from old disk: a regular user occupying UID 1000 (no MIGASFREE-ADMIN tag)
     mkdir -p /tmp/mcs_user_backup
     cat <<EOF > /tmp/mcs_user_backup/passwd
@@ -283,7 +283,7 @@ alberto:*::
 mateo:*::
 EOF
 
-    # MCI image target: has its own admin at UID 1000
+    # MGI image target: has its own admin at UID 1000
     cat <<EOF > "${NEW_SYSTEM_DIR}/etc/passwd"
 root:x:0:0:root:/root:/bin/bash
 nobody:x:65534:65534:nobody:/:/sbin/nologin
@@ -306,7 +306,7 @@ EOF
     run restore_local_users "${NEW_SYSTEM_DIR}"
     assert_success
 
-    # MCI admin must be preserved with original credentials
+    # MGI admin must be preserved with original credentials
     run grep "^acme-admin:" "${NEW_SYSTEM_DIR}/etc/passwd"
     assert_output_contains "acme-admin:x:1000:1000:ACME Admin,MIGASFREE-ADMIN"
     run grep "^acme-admin:" "${NEW_SYSTEM_DIR}/etc/shadow"
@@ -347,7 +347,7 @@ alberto:*::
 mateo:*::
 EOF
 
-    # MCI target with admin group at GID 1000
+    # MGI target with admin group at GID 1000
     cat <<EOF > "${NEW_SYSTEM_DIR}/etc/passwd"
 root:x:0:0:root:/root:/bin/bash
 acme-admin:x:1000:1000:ACME Admin,MIGASFREE-ADMIN,,:/home/acme-admin:/bin/bash
@@ -368,7 +368,7 @@ EOF
     run restore_local_users "${NEW_SYSTEM_DIR}"
     assert_success
 
-    # MCI admin group (GID 1000) must NOT be overwritten by backup 'alberto' group
+    # MGI admin group (GID 1000) must NOT be overwritten by backup 'alberto' group
     run grep ":x:1000:" "${NEW_SYSTEM_DIR}/etc/group"
     assert_output_contains "acme-admin"
 
@@ -401,7 +401,7 @@ admin:*::
 mateo:*::
 EOF
 
-    # MCI image target has new admin named 'senior' (UID 1000) with home directory '/home/senior'
+    # MGI image target has new admin named 'senior' (UID 1000) with home directory '/home/senior'
     cat <<EOF > "${NEW_SYSTEM_DIR}/etc/passwd"
 root:x:0:0:root:/root:/bin/bash
 senior:x:1000:1000:Senior Admin,MIGASFREE-ADMIN,,:/home/senior:/bin/bash

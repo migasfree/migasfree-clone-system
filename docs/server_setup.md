@@ -9,7 +9,7 @@ MCS is designed to pull system images from a centralized repository known as the
 ### Remote Server Structure
 
 The remote server must serve files over HTTP/HTTPS. By default, MCS looks for projects in the following path:
-`http://<SERVER_URL>/pool/mci/`
+`http://<SERVER_URL>/pool/mgi/`
 
 **Requirements for the remote server:**
 
@@ -26,7 +26,7 @@ Each project directory must contain:
 
 ### `catalog.json`
 
-This file indexes all available projects. MCS fetches it from `http://<SERVER_URL>/pool/mci/catalog.json` to populate the cloning menus.
+This file indexes all available projects. MCS fetches it from `http://<SERVER_URL>/pool/mgi/catalog.json` to populate the cloning menus.
 
 **Format:**
 
@@ -54,8 +54,8 @@ Every project in MCS **must** include a `partition.yml` file. This file defines 
 
 The system looks for this file in the following order:
 
-1. **Network Clone**: `http://<SERVER_URL>/pool/mci/<PROJECT_NAME>/partition.yml`
-2. **Local USB Clone**: `/mcsdata/pool/mci/<PROJECT_NAME>/partition.yml`
+1. **Network Clone**: `http://<SERVER_URL>/pool/mgi/<PROJECT_NAME>/partition.yml`
+2. **Local USB Clone**: `/mcsdata/pool/mgi/<PROJECT_NAME>/partition.yml`
 
 ### Syntax
 
@@ -167,7 +167,7 @@ The Manager service exposes two endpoints to programmatically build MCS project 
 
 ### Queue a Build
 
-Triggers an asynchronous build for a Migasfree project. On completion, `SYSTEM.raw`, `HOME.raw`, `partition.yml`, `checksums.sha256`, and `catalog.json` are placed in `/mnt/cluster/datashares/<STACK>/pool/mci/<project-slug>/`.
+Triggers an asynchronous build for a Migasfree project. On completion, `SYSTEM.raw`, `HOME.raw`, `partition.yml`, `checksums.sha256`, and `catalog.json` are placed in `/mnt/cluster/datashares/<STACK>/pool/mgi/<project-slug>/`.
 
 ```http
 POST /manager/v1/private/mcs/build
@@ -247,7 +247,7 @@ docker logs $(docker ps --filter name=inv_manager -q | head -1) 2>&1 | grep "mcs
 4. **Filesystem extraction** — exports the container via `docker export | tar -xf -` pipe (no intermediate tar file).
 5. **Raw image creation** — `mkfs.ext4 -d` creates `SYSTEM.raw` and `HOME.raw` from the extracted directories, then `resize2fs -M` shrinks them to fit the actual content.
 6. **Metadata generation** — creates `partition.yml`, `checksums.sha256`, updates `catalog.json`.
-7. **Pool deployment** — all files moved to `pool/mci/<slug>/`.
+7. **Pool deployment** — all files moved to `pool/mgi/<slug>/`.
 
 ### Prerequisites
 
@@ -262,7 +262,7 @@ docker logs $(docker ps --filter name=inv_manager -q | head -1) 2>&1 | grep "mcs
 1. **Creation**: Create a master system image using your preferred method (e.g., QEMU, VirtualBox).
 2. **Extraction**: Extract the partitions to RAW files (`SYSTEM.raw` and `HOME.raw`).
 3. **Configuration**: Create the `partition.yml` and `checksums.sha256`.
-4. **Upload**: Upload the project directory to the server's `/pool/mci/` path.
+4. **Upload**: Upload the project directory to the server's `/pool/mgi/` path.
 5. **Indexing**: Add the project to `catalog.json` in the pool root. This is how MCS discovers and lists available projects.
 6. **Discovery**: Boot MCS on a client machine. The new project will appear in the Network Clone menu.
 

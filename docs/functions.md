@@ -50,10 +50,10 @@ To manually clone a project from a shell inside MCS:
 source /usr/share/mcs/functions
 
 # Clone a local project to the first SATA disk
-clone_HD /mcsdata/pool/mci/inv.org_lnx-1 /dev/sda
+clone_HD /mcsdata/pool/mgi/inv.org_lnx-1 /dev/sda
 
 # Clone a remote project directly via network streaming
-clone_HD http://your-server.org/pool/mci/inv.org_lnx-1/ /dev/sda
+clone_HD http://your-server.org/pool/mgi/inv.org_lnx-1/ /dev/sda
 ```
 
 ## 🛡️ Preserve HOME Logic
@@ -100,7 +100,7 @@ Before starting, MCS checks the existing disk:
 
 When cloning finishes and user accounts are restored:
 
-- **The New Admin Wins**: The administrator user that comes with the new MCI (e.g., `senior`) is installed on the disk. The old backup administrator is skipped.
+- **The New Admin Wins**: The administrator user that comes with the new MGI (e.g., `senior`) is installed on the disk. The old backup administrator is skipped.
 - **Clean Old Admin Sweep**: If the old administrator has a different name (e.g., `admin` instead of `senior`), all its traces (user account, groups, and the `/home/admin` folder) are **completely deleted** from the disk to avoid clutter or login errors.
 - **Fresh Start for the New Admin**: If the new administrator's folder (e.g., `/home/senior`) does not exist on the preserved `/home` partition, MCS automatically creates it, copies clean default settings (from `/etc/skel`), and sets correct permissions (`1000:1000`) so the graphical desktop (X11) starts perfectly.
 - **Normal Users are Preserved**: All other standard local users are merged back normally without modifications.
@@ -110,4 +110,4 @@ When cloning finishes and user accounts are restored:
 - **RAW Partition Streaming**: The library is optimized for projects containing `SYSTEM.raw` and `HOME.raw`.
 - **Root Required**: Almost all functions require root privileges.
 - **Safety**: By default, `clone_HD` is destructive; it will wipe the partition table unless `PRESERVE_HOME` is validated and requested.
-- **Admin Convention**: All MCI images must ship with UID 1000 as the admin user, tagged `MIGASFREE-ADMIN` in the GECOS field.
+- **Admin Convention**: All MGI images must ship with UID 1000 as the admin user, tagged `MIGASFREE-ADMIN` in the GECOS field.

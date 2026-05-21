@@ -1096,14 +1096,14 @@ restore_local_users() {
         fi
     done
     
-    # 0. Snapshot UID 1000 admin from MCI image (authoritative — must always survive)
-    local _MCI_ADMIN_PASSWD=$(awk -F: '$3 == 1000' "${_MOUNT}/etc/passwd" 2>/dev/null)
-    local _MCI_ADMIN_SHADOW=""
-    local _MCI_ADMIN_USER=""
-    if [ -n "$_MCI_ADMIN_PASSWD" ]; then
-        _MCI_ADMIN_USER=$(echo "$_MCI_ADMIN_PASSWD" | cut -d: -f1)
-        _MCI_ADMIN_SHADOW=$(grep "^${_MCI_ADMIN_USER}:" "${_MOUNT}/etc/shadow" 2>/dev/null)
-        mcs_log "      [PROTECT] MCI admin UID 1000: $_MCI_ADMIN_USER (will be enforced)"
+    # 0. Snapshot UID 1000 admin from MGI image (authoritative — must always survive)
+    local _MGI_ADMIN_PASSWD=$(awk -F: '$3 == 1000' "${_MOUNT}/etc/passwd" 2>/dev/null)
+    local _MGI_ADMIN_SHADOW=""
+    local _MGI_ADMIN_USER=""
+    if [ -n "$_MGI_ADMIN_PASSWD" ]; then
+        _MGI_ADMIN_USER=$(echo "$_MGI_ADMIN_PASSWD" | cut -d: -f1)
+        _MGI_ADMIN_SHADOW=$(grep "^${_MGI_ADMIN_USER}:" "${_MOUNT}/etc/shadow" 2>/dev/null)
+        mcs_log "      [PROTECT] MGI admin UID 1000: $_MGI_ADMIN_USER (will be enforced)"
     fi
     
     # 0b. Temporarily mount target HOME partition if _DEVICE is provided
@@ -1128,7 +1128,7 @@ restore_local_users() {
         local _BACKUP_ADMIN_USER=$(echo "$_BACKUP_ADMIN_ENTRY" | cut -d: -f1)
         local _BACKUP_ADMIN_HOME=$(echo "$_BACKUP_ADMIN_ENTRY" | cut -d: -f6)
         
-        if [ -n "$_MCI_ADMIN_USER" ] && [ "$_BACKUP_ADMIN_USER" != "$_MCI_ADMIN_USER" ]; then
+        if [ -n "$_MGI_ADMIN_USER" ] && [ "$_BACKUP_ADMIN_USER" != "$_MGI_ADMIN_USER" ]; then
             mcs_log "      [CLEANUP] Deleting old admin user account and home directory: $_BACKUP_ADMIN_USER"
             
             # Delete its home directory from the mounted target HOME/SYSTEM partition
@@ -1151,8 +1151,8 @@ restore_local_users() {
     fi
     
     # 0d. Ensure the admin's home directory exists and has correct ownership (1000:1000)
-    if [ -n "$_MCI_ADMIN_USER" ] && [ -n "$_MCI_ADMIN_PASSWD" ]; then
-        local _ADMIN_HOME_DIR=$(echo "$_MCI_ADMIN_PASSWD" | cut -d: -f6)
+    if [ -n "$_MGI_ADMIN_USER" ] && [ -n "$_MGI_ADMIN_PASSWD" ]; then
+        local _ADMIN_HOME_DIR=$(echo "$_MGI_ADMIN_PASSWD" | cut -d: -f6)
         if [ -n "$_ADMIN_HOME_DIR" ]; then
             local _REAL_ADMIN_HOME="${_MOUNT}${_ADMIN_HOME_DIR}"
             if [ ! -d "$_REAL_ADMIN_HOME" ]; then
@@ -1176,18 +1176,18 @@ restore_local_users() {
     for user in $_USERS; do
         [ "$user" = "nobody" ] && continue
         
-        # Skip restoring centralized administrative users (they are managed in master MCI image)
+        # Skip restoring centralized administrative users (they are managed in master MGI image)
         local _GECOS=$(grep "^${user}:" "$_BACKUP_DIR/passwd" | cut -d: -f5)
         if echo "$_GECOS" | grep -q -i "MIGASFREE-ADMIN"; then
-            mcs_log "      Skipping centralized admin restoration: $user (using MCI credentials)"
+            mcs_log "      Skipping centralized admin restoration: $user (using MGI credentials)"
             continue
         fi
         
-        # Skip any backup user whose UID is 1000 if we are enforcing a target MCI admin
-        if [ -n "$_MCI_ADMIN_USER" ]; then
+        # Skip any backup user whose UID is 1000 if we are enforcing a target MGI admin
+        if [ -n "$_MGI_ADMIN_USER" ]; then
             local _BACKUP_UID=$(grep "^${user}:" "$_BACKUP_DIR/passwd" | cut -d: -f3)
             if [ "$_BACKUP_UID" = "1000" ]; then
-                mcs_log "      Skipping UID 1000 user: $user (reserved for MCI admin: $_MCI_ADMIN_USER)"
+                mcs_log "      Skipping UID 1000 user: $user (reserved for MGI admin: $_MGI_ADMIN_USER)"
                 continue
             fi
         fi
@@ -1205,18 +1205,18 @@ restore_local_users() {
         fi
     done
     
-    # 1b. Enforce MCI admin UID 1000 if it exists — guarantee it is present and unmodified
-    if [ -n "$_MCI_ADMIN_PASSWD" ] && [ -n "$_MCI_ADMIN_SHADOW" ]; then
+    # 1b. Enforce MGI admin UID 1000 if it exists — guarantee it is present and unmodified
+    if [ -n "$_MGI_ADMIN_PASSWD" ] && [ -n "$_MGI_ADMIN_SHADOW" ]; then
         # Remove any entry that may have taken UID 1000 or the admin username
-        sed -i "/^${_MCI_ADMIN_USER}:/d" "${_MOUNT}/etc/passwd"
-        sed -i "/^${_MCI_ADMIN_USER}:/d" "${_MOUNT}/etc/shadow"
+        sed -i "/^${_MGI_ADMIN_USER}:/d" "${_MOUNT}/etc/passwd"
+        sed -i "/^${_MGI_ADMIN_USER}:/d" "${_MOUNT}/etc/shadow"
         # Also remove any other user that may have ended up with UID 1000
         awk -F: '$3 != 1000' "${_MOUNT}/etc/passwd" > "${_MOUNT}/etc/passwd.tmp" && \
             mv "${_MOUNT}/etc/passwd.tmp" "${_MOUNT}/etc/passwd"
         
-        echo "$_MCI_ADMIN_PASSWD" >> "${_MOUNT}/etc/passwd"
-        echo "$_MCI_ADMIN_SHADOW" >> "${_MOUNT}/etc/shadow"
-        mcs_log "      [OK] MCI admin enforced: $_MCI_ADMIN_USER (UID 1000)"
+        echo "$_MGI_ADMIN_PASSWD" >> "${_MOUNT}/etc/passwd"
+        echo "$_MGI_ADMIN_SHADOW" >> "${_MOUNT}/etc/shadow"
+        mcs_log "      [OK] MGI admin enforced: $_MGI_ADMIN_USER (UID 1000)"
     fi
     
     # 2. Merge group and gshadow entries (GID >= 1000 and GID < 60000)
@@ -1227,11 +1227,11 @@ restore_local_users() {
         local _GROUP_ENTRY=$(grep "^${group}:" "$_BACKUP_DIR/group")
         local _GSHADOW_ENTRY=$(grep "^${group}:" "$_BACKUP_DIR/gshadow")
         if [ -n "$_GROUP_ENTRY" ]; then
-            # Skip restoring groups whose GID is 1000 (belongs to MCI admin) if we are enforcing a target MCI admin
-            if [ -n "$_MCI_ADMIN_USER" ]; then
+            # Skip restoring groups whose GID is 1000 (belongs to MGI admin) if we are enforcing a target MGI admin
+            if [ -n "$_MGI_ADMIN_USER" ]; then
                 local _BACKUP_GID=$(echo "$_GROUP_ENTRY" | cut -d: -f3)
                 if [ "$_BACKUP_GID" = "1000" ]; then
-                    mcs_log "      Skipping GID 1000 group: $group (reserved for MCI admin group)"
+                    mcs_log "      Skipping GID 1000 group: $group (reserved for MGI admin group)"
                     continue
                 fi
             fi

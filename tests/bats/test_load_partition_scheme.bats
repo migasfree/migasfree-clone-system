@@ -38,17 +38,17 @@ teardown() {
 
 @test "load_partition_scheme: from HTTP URL" {
     export MOCK_WGET_DIR="${FIXTURES_DIR}"
-    run load_partition_scheme "http://server/pool/mci/project/"
+    run load_partition_scheme "http://server/pool/mgi/project/"
     assert_success
 }
 
 @test "load_partition_scheme: HTTP URL with missing partition.yml returns error" {
-    run load_partition_scheme "http://server/pool/mci/missing/"
+    run load_partition_scheme "http://server/pool/mgi/missing/"
     assert_failure
 }
 
 @test "load_partition_scheme: from URL ending with .raw (single file)" {
     export MOCK_WGET_DIR="${FIXTURES_DIR}"
-    run load_partition_scheme "http://server/pool/mci/project/SYSTEM.raw"
+    run load_partition_scheme "http://server/pool/mgi/project/SYSTEM.raw"
     assert_success
 }

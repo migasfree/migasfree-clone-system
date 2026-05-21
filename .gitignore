@@ -1,3 +1,5 @@
 artifacts/*
 docs/audit_strategic.md
 tests/fixtures/*.raw
+.agent/skills/disciplines/windows-expert
+TODO/*
