@@ -46,6 +46,7 @@ QEMU_CMD="sudo qemu-system-x86_64 \
     -m $TEST_RAM \
     -enable-kvm \
     -cpu host \
+    -net nic,model=virtio -net user \
     -drive file=$TARGET_PATH,format=$TARGET_FORMAT \
     ${TEST_UUID:+ -uuid $TEST_UUID} \
     -monitor unix:/tmp/qemu-monitor.sock,server,nowait"
