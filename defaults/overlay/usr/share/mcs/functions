@@ -363,8 +363,10 @@ part_by_name() {
     local _NAME="$2"
     local _DEV_PART=$(part_by_label_on_device "${_DEVICE}" "${_NAME}")
     if [ -z "${_DEV_PART}" ]; then
-        local _NUMBER=$(echo "$_JSON_PARTITIONS" | jq ' .[] | select( .name == "'${_NAME}'") | .number | tonumber')
-        _DEV_PART=$(part_by_id ${_DEVICE} ${_NUMBER})
+        local _NUMBER=$(echo "$_JSON_PARTITIONS" | jq -r --arg n "$_NAME" '.[] | select(.name == $n) | .number' 2>/dev/null)
+        if [ -n "${_NUMBER}" ]; then
+            _DEV_PART=$(part_by_id "${_DEVICE}" "${_NUMBER}")
+        fi
     fi
     echo "${_DEV_PART}"
 }
@@ -836,6 +838,49 @@ clone_HD() {
 }
 
 
+# Ensure the freshly cloned target system can resolve the Migasfree server domain.
+# If normal DNS resolution is unavailable (e.g., in a laboratory or offline network),
+# this function injects a fallback entry mapping the server FQDN to its IP address
+# into the target system's /etc/hosts file.
+ensure_server_resolution() {
+    local _MOUNT="$1"
+    local _SERVER_URL="${SERVER_URL}"
+    local _SERVER_IP="${SERVER_IP}"
+
+    # If parameters are not in the environment, load them directly from config.yml
+    if [ -z "$_SERVER_URL" ] && [ -f "/mcsdata/config.yml" ]; then
+        _SERVER_URL=$(yq '.settings.server' < /mcsdata/config.yml 2>/dev/null)
+        _SERVER_IP=$(yq '.settings.server_ip' < /mcsdata/config.yml 2>/dev/null)
+    fi
+
+    if [ -n "$_SERVER_URL" ]; then
+        # Check if FQDN does NOT resolve (trying both host and nslookup as a fallback in BusyBox)
+        if ! host "$_SERVER_URL" >/dev/null 2>&1 && ! nslookup "$_SERVER_URL" >/dev/null 2>&1; then
+            mcs_log "  [WARNING] DNS does not resolve for $_SERVER_URL in the current network."
+            if [ -f "${_MOUNT}/etc/hosts" ]; then
+                mcs_log "  [+] Injecting fallback resolution in ${_MOUNT}/etc/hosts"
+                
+                # Remove any existing entries for the FQDN to prevent duplicates
+                sed -i "/${_SERVER_URL}$/d" "${_MOUNT}/etc/hosts"
+                
+                local _IP_TO_WRITE="$_SERVER_IP"
+                if [ -z "$_IP_TO_WRITE" ]; then
+                    # Fallback: Extract the server IP mapping currently used by the installer itself
+                    _IP_TO_WRITE=$(grep -E "${_SERVER_URL}$" /etc/hosts | awk '{print $1}' | head -n 1)
+                fi
+                
+                if [ -n "$_IP_TO_WRITE" ]; then
+                    echo "${_IP_TO_WRITE} ${_SERVER_URL}" >> "${_MOUNT}/etc/hosts"
+                    mcs_log "  [OK] Injected resolution: ${_IP_TO_WRITE} ${_SERVER_URL} in target hosts file."
+                else
+                    mcs_log "  [ERROR] Failed to determine Migasfree server IP address."
+                fi
+            fi
+        fi
+    fi
+}
+
+
 rescue() {
     local _DEVICE="$1"
     local _MOUNT="${TEST_MOUNT:-/mnt/rescue}"
@@ -849,6 +894,9 @@ rescue() {
 
     mkdir -p "${_MOUNT}"
     mount -t auto "${_DEV_SYSTEM}" "${_MOUNT}" >> "$MCS_LOG_FILE" 2>&1
+
+    # Ensure the target system can resolve the server FQDN
+    ensure_server_resolution "${_MOUNT}"
 
     # Restore preserved user accounts and groups
     restore_local_users "${_MOUNT}" "$_DEVICE"
