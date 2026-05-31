@@ -1059,6 +1059,14 @@ migasfree_sync_target() {
             chroot "${_MOUNT}" migasfree tags --communicate ${_TAGS} >> "$MCS_LOG_FILE" 2>&1
         fi
 
+        # Inject clone_date into golden image identity file
+        local _MGI_JSON="${_MOUNT}/etc/migasfree-golden-image.json"
+        if [ -f "$_MGI_JSON" ] && which jq >/dev/null 2>&1; then
+            mcs_log "  [+] Injecting clone_date into $_MGI_JSON"
+            local _NOW=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            jq --arg date "$_NOW" '. + {clone_date: $date}' "$_MGI_JSON" > "${_MGI_JSON}.tmp" && mv "${_MGI_JSON}.tmp" "$_MGI_JSON"
+        fi
+
         # Execute sync
         chroot "${_MOUNT}" migasfree sync >> "$MCS_LOG_FILE" 2>&1
         if [ $? -eq 0 ]; then
