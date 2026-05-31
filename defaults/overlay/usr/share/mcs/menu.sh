@@ -9,6 +9,14 @@ CONFIG_FILE="$MOUNT/config.yml"
 IMAGES_DIR="$MOUNT/images"
 TEMPORAL_FILE="/tmp/dialog_options"
 
+# Ensure config.yml is initialized before any variables are loaded
+if ! [ -d "${MOUNT}" ]; then
+    mkdir -p "${MOUNT}"
+fi
+if ! [ -f "${CONFIG_FILE}" ]; then
+    cp /usr/share/mcs/config.yml "${CONFIG_FILE}"
+fi
+
 
 show_selection() {
     local backtitle="$1"
@@ -103,11 +111,6 @@ then
     clear
     show_msg "" "First run" "Completed.\nCongratulation! you have $_SIZE for images."
     clear
-fi
-
-
-if ! [ -f ${CONFIG_FILE} ]; then
-    cp /usr/share/mcs/config.yml ${CONFIG_FILE}
 fi
 
 if ! [ -f ${MOUNT}/images ]; then

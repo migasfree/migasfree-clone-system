@@ -6,6 +6,14 @@ clear
 
 setfont /usr/share/consolefonts/ter-132n.psf.gz
 
+# Ensure config.yml is initialized before reading the keymap
+if ! [ -d "/mcsdata" ]; then
+  mkdir -p /mcsdata
+fi
+if ! [ -f "/mcsdata/${CONFIG_FILE}" ]; then
+  cp /usr/share/mcs/config.yml /mcsdata/${CONFIG_FILE}
+fi
+
 KEYMAP=$(yq '.settings.keymap' < /mcsdata/${CONFIG_FILE})
 loadkeys ${KEYMAP}
 
