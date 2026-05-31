@@ -157,6 +157,28 @@ partitions:
 
 Size is in MB. A size of `0` means the partition uses the remaining disk space.
 
+## 🆔 Golden Image Identity File & MCS Integration
+
+Each Migasfree Golden Image (MGI) contains a static identification file located at `/etc/migasfree-golden-image.json`. During the target system deployment and configuration phase, MCS integrates directly with this file.
+
+### Cloning Integration and `clone_date` Injection
+
+When MCS performs the rescue and synchronization phase (inside `migasfree_sync_target` in the `functions` library), it mounts the newly cloned target partition and checks for `/etc/migasfree-golden-image.json`:
+
+1. **Tag Retrieval & Communication**: MCS extracts any preconfigured build-time tags (e.g. `KERNEL-VIRTUAL` or `KERNEL-PHYSICAL`) using `jq` and communicates them immediately to the Migasfree server via:
+
+   ```bash
+   chroot "${_MOUNT}" migasfree tags --communicate ${_TAGS}
+   ```
+
+2. **`clone_date` Injection**: MCS records the exact timestamp when the deployment is finished. It uses `jq` to dynamically inject the `clone_date` attribute into the JSON file:
+
+   ```bash
+   jq --arg date "$_NOW" '. + {clone_date: $date}' "$_MGI_JSON"
+   ```
+
+This enriched metadata is persisted in the cloned target filesystem, enabling both local diagnostics and the Migasfree client/server to accurately log when the machine was successfully deployed.
+
 ## 🌐 Networking
 
 MCS is configured to use DHCP on all interfaces by default. Upon boot, it attempts to:
