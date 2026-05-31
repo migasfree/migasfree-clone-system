@@ -1052,16 +1052,17 @@ migasfree_sync_target() {
         # Copy resolv.conf to target to ensure network access in chroot
         cp /etc/resolv.conf "${_MOUNT}/etc/resolv.conf" 2>/dev/null || :
         
-        # Communicate tags for new machine
-        if [ -f "${_MOUNT}/etc/migasfree.image.tags" ]; then
-            local _TAGS=$(cat "${_MOUNT}/etc/migasfree.image.tags")
-            mcs_log "      Image Tags: ${_TAGS}"
-            chroot "${_MOUNT}" migasfree tags --communicate ${_TAGS} >> "$MCS_LOG_FILE" 2>&1
-        fi
-
-        # Inject clone_date into golden image identity file
+        # Process golden image identity file
         local _MGI_JSON="${_MOUNT}/etc/migasfree-golden-image.json"
         if [ -f "$_MGI_JSON" ] && which jq >/dev/null 2>&1; then
+            # 1. Communicate tags for new machine
+            local _TAGS=$(jq -r '.tags // empty' "$_MGI_JSON")
+            if [ -n "$_TAGS" ]; then
+                mcs_log "      Image Tags: ${_TAGS}"
+                chroot "${_MOUNT}" migasfree tags --communicate ${_TAGS} >> "$MCS_LOG_FILE" 2>&1
+            fi
+
+            # 2. Inject clone_date
             mcs_log "  [+] Injecting clone_date into $_MGI_JSON"
             local _NOW=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
             jq --arg date "$_NOW" '. + {clone_date: $date}' "$_MGI_JSON" > "${_MGI_JSON}.tmp" && mv "${_MGI_JSON}.tmp" "$_MGI_JSON"
