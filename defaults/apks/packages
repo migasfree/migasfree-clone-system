@@ -18,7 +18,7 @@ findmnt
 bash
 qemu-img
 dialog
-yq
+yq-go
 jq
 font-terminus
 kbd
@@ -28,9 +28,10 @@ tzdata
 grub
 grub-efi
 grub-bios
-udev
-udev-openrc
+eudev
+eudev-openrc
 wget
 qemu-block-curl
-openssh-client
+openssh-client-default
 pv
+gettext

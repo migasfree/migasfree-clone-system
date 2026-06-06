@@ -5,7 +5,7 @@ USER root
 RUN apk add parted e2fsprogs wget rsync qemu-img
 
 COPY ./defaults/apks /apks
-RUN cd apks && \
+RUN cd apks && apk update && \
     xargs -n 1 apk fetch --recursive < packages
 
 COPY defaults/usr /usr
