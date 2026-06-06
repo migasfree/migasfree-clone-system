@@ -993,6 +993,14 @@ rescue() {
     # Migasfree Sync (Optional)
     migasfree_sync_target "${_MOUNT}"
 
+    # Execution of Provisioning Script
+    if [ -f "/tmp/provision.sh.j2" ] && [ -f "/tmp/provision_answers.env" ]; then
+        render_provision_script "/tmp/provision.sh.j2" "/tmp/provision_answers.env" "/tmp/provision_rendered.sh"
+        run_provision_script "${_MOUNT}" "/tmp/provision_rendered.sh"
+        rm -f /tmp/provision.sh.j2 /tmp/provision_answers.env /tmp/provision_rendered.sh
+    fi
+
+
     mcs_log "Syncing and unmounting..."
     sync
     sleep 2
@@ -1369,5 +1377,186 @@ check_local_users_safety() {
     else
         rm -rf "$_MOUNT_DIR"
         return 0
+    fi
+}
+
+fetch_provision_script() {
+    local _SOURCE="$1"
+    local _FILE="provision.sh.j2"
+    local _TEMP="/tmp/provision.sh.j2"
+    
+    rm -f "$_TEMP"
+    if [[ "$_SOURCE" == http* ]]; then
+        local _URL="$_SOURCE"
+        [[ "$_URL" != */ ]] && _URL="${_URL%/*}/"
+        wget -q --timeout=15 -O "$_TEMP" "${_URL}${_FILE}" 2>/dev/null
+    elif [ -d "$_SOURCE" ]; then
+        cp "$_SOURCE/$_FILE" "$_TEMP" 2>/dev/null
+    fi
+
+    if [ -f "$_TEMP" ] && [ -s "$_TEMP" ]; then
+        echo "$_TEMP"
+        return 0
+    fi
+    rm -f "$_TEMP"
+    return 1
+}
+
+extract_provision_variables() {
+    local _SCRIPT_PATH="$1"
+    
+    rm -f /tmp/mcs_vars.yml
+    sed -n '/# --- MCS Variables ---/,/# ---/p' "$_SCRIPT_PATH" | sed -E 's/^#[[:space:]]?//' | grep -v '^---' > /tmp/mcs_vars.yml 2>/dev/null
+    
+    local _RAW_VARS
+    _RAW_VARS=$(grep -o -E '\{\{[[:space:]]*[a-zA-Z0-9_]+[[:space:]]*\}\}' "$_SCRIPT_PATH" 2>/dev/null | tr -d '{ }' | sort -u)
+    
+    local _V
+    for _V in $_RAW_VARS; do
+        case "$_V" in
+            server|project_name|project_slug|flavour|release|tags|base_os)
+                # Omit automatic variables
+                ;;
+            *)
+                echo "$_V"
+                ;;
+        esac
+    done
+}
+
+get_auto_variables() {
+    local _IMAGE_NAME="$1"
+    echo "server=${SERVER_URL}"
+    local _PROJ=$(echo "$_IMAGE_NAME" | cut -d'-' -f1)
+    local _REL=$(echo "$_IMAGE_NAME" | cut -d'-' -f2)
+    local _FLAV=$(echo "$_IMAGE_NAME" | cut -d'-' -f3)
+    echo "project_name=${_PROJ}"
+    echo "project_slug=${_PROJ}"
+    echo "release=${_REL}"
+    echo "flavour=${_FLAV}"
+}
+
+prompt_provision_variables() {
+    local _SCRIPT_PATH="$1"
+    local _IMAGE_NAME="$2"
+    local _OUTPUT_FILE="/tmp/provision_answers.env"
+    rm -f "$_OUTPUT_FILE"
+
+    get_auto_variables "$_IMAGE_NAME" > "$_OUTPUT_FILE"
+
+    local _VARS
+    _VARS=$(extract_provision_variables "$_SCRIPT_PATH")
+    if [ -z "$_VARS" ]; then
+        return 0
+    fi
+
+    local _FORM_ARGS=()
+    local _INDEX=1
+    local _YAML_EXISTS=0
+    if [ -f "/tmp/mcs_vars.yml" ] && [ -s "/tmp/mcs_vars.yml" ]; then
+        _YAML_EXISTS=1
+    fi
+
+    local _VAR _LABEL _DEFAULT _REQ
+    for _VAR in $_VARS; do
+        _LABEL=""
+        _DEFAULT=""
+        _REQ="false"
+        if [ $_YAML_EXISTS -eq 1 ]; then
+            _LABEL=$(yq -e -r ".variables.${_VAR}.label" /tmp/mcs_vars.yml 2>/dev/null || echo "")
+            _DEFAULT=$(yq -e -r ".variables.${_VAR}.default" /tmp/mcs_vars.yml 2>/dev/null || echo "")
+            _REQ=$(yq -e -r ".variables.${_VAR}.required" /tmp/mcs_vars.yml 2>/dev/null || echo "false")
+        fi
+
+        if [ -z "$_LABEL" ] || [ "$_LABEL" = "null" ]; then
+            _LABEL="$_VAR"
+        fi
+        if [ "$_DEFAULT" = "null" ]; then
+            _DEFAULT=""
+        fi
+
+        _FORM_ARGS+=("${_LABEL}:" "$_INDEX" "1" "${_DEFAULT}" "$_INDEX" "25" "30" "0")
+        _INDEX=$((_INDEX + 1))
+    done
+
+    if [ ${#_FORM_ARGS[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    local _FORM_HEIGHT=$(( _INDEX - 1 ))
+    [ $_FORM_HEIGHT -lt 1 ] && _FORM_HEIGHT=1
+    local _HEIGHT=$(( 7 + _FORM_HEIGHT ))
+    local _RESPONSES
+    _RESPONSES=$(dialog --stdout --backtitle "$TITLE" \
+                        --title " Provisioning Variables " \
+                        --form "" \
+                        $_HEIGHT 65 $_FORM_HEIGHT \
+                        "${_FORM_ARGS[@]}")
+    
+    local _RET=$?
+    if [ $_RET -ne 0 ]; then
+        return 1
+    fi
+
+    _INDEX=1
+    for _VAR in $_VARS; do
+        local _VAL
+        _VAL=$(echo "$_RESPONSES" | sed -n "${_INDEX}p")
+        echo "${_VAR}=${_VAL}" >> "$_OUTPUT_FILE"
+        _INDEX=$((_INDEX + 1))
+    done
+
+    return 0
+}
+
+render_provision_script() {
+    local _TEMPLATE_PATH="$1"
+    local _VARIABLES_FILE="$2"
+    local _OUTPUT_PATH="$3"
+
+    while IFS='=' read -r key val; do
+        if [ -n "$key" ]; then
+            export "$key"="$val"
+        fi
+    done < "$_VARIABLES_FILE"
+
+    sed 's/{{\s*\([a-zA-Z0-9_]\+\)\s*}}/${\1}/g' "$_TEMPLATE_PATH" > /tmp/provision_converted.sh
+
+    local _ENV_VARS=""
+    while IFS='=' read -r key val; do
+        if [ -n "$key" ]; then
+            _ENV_VARS="${_ENV_VARS} \$${key}"
+        fi
+    done < "$_VARIABLES_FILE"
+
+    envsubst "$_ENV_VARS" < /tmp/provision_converted.sh > "$_OUTPUT_PATH"
+    rm -f /tmp/provision_converted.sh
+}
+
+run_provision_script() {
+    local _MOUNT="$1"
+    local _SCRIPT_PATH="$2"
+    
+    if [ ! -f "$_SCRIPT_PATH" ]; then
+        return 0
+    fi
+    
+    mcs_log "  [+] Running Provisioning Script on target system..."
+    
+    local _DEST_SCRIPT="${_MOUNT}/tmp/provision.sh"
+    cp "$_SCRIPT_PATH" "$_DEST_SCRIPT"
+    chmod +x "$_DEST_SCRIPT"
+    
+    chroot "${_MOUNT}" /tmp/provision.sh >> "$MCS_LOG_FILE" 2>&1
+    local _RET=$?
+    
+    rm -f "$_DEST_SCRIPT"
+    
+    if [ $_RET -eq 0 ]; then
+        mcs_log "  [OK] Provisioning Script completed successfully."
+        return 0
+    else
+        mcs_log "  [ERROR] Provisioning Script failed with exit code $_RET."
+        return 1
     fi
 }

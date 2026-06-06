@@ -253,11 +253,23 @@ clone_menu(){
     local _PRESERVE_HOME="false"
 
     load_partition_scheme "$IMAGES_DIR/$_IMAGE_NAME"
+
+    local _PROV_TEMPLATE
+    _PROV_TEMPLATE=$(fetch_provision_script "$IMAGES_DIR/$_IMAGE_NAME")
+    if [ -n "$_PROV_TEMPLATE" ]; then
+        prompt_provision_variables "$_PROV_TEMPLATE" "$_IMAGE_NAME"
+        if [ $? -ne 0 ]; then
+            rm -f "$_PROV_TEMPLATE"
+            return
+        fi
+    fi
+
     if check_home_viability "/dev/$_DISK_DEV"; then
         show_confirm "Local Clone" "Preserve HOME?" "Do you want to preserve existing user data?" yes
         if [ $? -eq 0 ]; then
             _PRESERVE_HOME="true"
             if ! check_local_users_safety "/dev/$_DISK_DEV"; then
+                rm -f /tmp/provision.sh.j2 /tmp/provision_answers.env /tmp/mcs_vars.yml
                 return
             fi
         fi
@@ -292,6 +304,8 @@ clone_menu(){
                 less "$MCS_LOG_FILE"
             fi
         fi
+    else
+        rm -f /tmp/provision.sh.j2 /tmp/provision_answers.env /tmp/mcs_vars.yml
     fi
 }
 
@@ -332,11 +346,23 @@ network_clone_menu() {
     local _PRESERVE_HOME="false"
 
     load_partition_scheme "$DOWNLOAD_URL"
+
+    local _PROV_TEMPLATE
+    _PROV_TEMPLATE=$(fetch_provision_script "$DOWNLOAD_URL")
+    if [ -n "$_PROV_TEMPLATE" ]; then
+        prompt_provision_variables "$_PROV_TEMPLATE" "$FILE"
+        if [ $? -ne 0 ]; then
+            rm -f "$_PROV_TEMPLATE"
+            return
+        fi
+    fi
+
     if check_home_viability "/dev/$_DISK_DEV"; then
         show_confirm "Network Clone" "Preserve HOME?" "Do you want to preserve existing user data?" yes
         if [ $? -eq 0 ]; then
             _PRESERVE_HOME="true"
             if ! check_local_users_safety "/dev/$_DISK_DEV"; then
+                rm -f /tmp/provision.sh.j2 /tmp/provision_answers.env /tmp/mcs_vars.yml
                 return
             fi
         fi
@@ -373,6 +399,8 @@ network_clone_menu() {
                 less "$MCS_LOG_FILE"
             fi
         fi
+    else
+        rm -f /tmp/provision.sh.j2 /tmp/provision_answers.env /tmp/mcs_vars.yml
     fi
 }
 
@@ -448,6 +476,16 @@ download_image() {
         # 1b. Download checksums.sha256 (optional integrity verification)
         mcs_log "[+] Downloading checksums.sha256..."
         /usr/bin/wget -q --timeout=15 "${DOWNLOAD_URL}checksums.sha256" -O "$IMAGES_DIR/${FILE_DIR}checksums.sha256" 2>/dev/null
+
+        # 1c. Download provision.sh.j2 (optional)
+        mcs_log "[+] Downloading provision.sh.j2..."
+        if /usr/bin/wget -q --timeout=15 "${DOWNLOAD_URL}provision.sh.j2" -O "$IMAGES_DIR/${FILE_DIR}provision.sh.j2" 2>/dev/null; then
+            if ! verify_file_checksum "$IMAGES_DIR/${FILE_DIR}provision.sh.j2" "provision.sh.j2"; then
+                rm -rf "$IMAGES_DIR/$FILE_DIR"
+                show_msg "Network Clone" "Error" "Integrity check failed for provision.sh.j2!"
+                return 1
+            fi
+        fi
 
         # 2. Verify integrity and determine parts from YAML (MANDATORY)
         local _PARTS
