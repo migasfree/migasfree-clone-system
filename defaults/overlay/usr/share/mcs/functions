@@ -1408,8 +1408,14 @@ extract_provision_variables() {
     rm -f /tmp/mcs_vars.yml
     sed -n '/# --- MCS Variables ---/,/# ---/p' "$_SCRIPT_PATH" | sed -E 's/^#[[:space:]]?//' | grep -v '^---' > /tmp/mcs_vars.yml 2>/dev/null
     
-    local _RAW_VARS
-    _RAW_VARS=$(grep -o -E '\{\{[[:space:]]*[a-zA-Z0-9_]+[[:space:]]*\}\}' "$_SCRIPT_PATH" 2>/dev/null | tr -d '{ }' | sort -u)
+    local _RAW_VARS=""
+    if [ -f /tmp/mcs_vars.yml ] && yq -e '.variables' /tmp/mcs_vars.yml >/dev/null 2>&1; then
+        _RAW_VARS=$(yq -r '.variables | keys | .[]' /tmp/mcs_vars.yml 2>/dev/null)
+    fi
+    
+    if [ -z "$_RAW_VARS" ]; then
+        _RAW_VARS=$(grep -o -E '\{\{[[:space:]]*[a-zA-Z0-9_]+[[:space:]]*\}\}' "$_SCRIPT_PATH" 2>/dev/null | tr -d '{ }' | sort -u)
+    fi
     
     local _V
     for _V in $_RAW_VARS; do

@@ -115,3 +115,28 @@ SCRIPT
     assert_output_contains "Project is myproject"
     assert_output_contains "Path is \$PATH"
 }
+
+@test "extract_provision_variables: extracts vars declared in YAML even if not used as placeholders in the script body" {
+    local temp_script="$MOCK_DIR/test_script.sh.j2"
+    cat > "$temp_script" <<'EOF'
+#!/bin/bash
+# --- MCS Variables ---
+# variables:
+#   hostname:
+#     label: "Hostname (PCXXXXX)"
+#     default: ""
+#     required: true
+#   miip:
+#     label: "miip"
+#     default: ""
+#     required: true
+# ---
+echo "No placeholders here"
+EOF
+
+    run extract_provision_variables "$temp_script"
+    assert_success
+    assert_output_contains "hostname"
+    assert_output_contains "miip"
+}
+

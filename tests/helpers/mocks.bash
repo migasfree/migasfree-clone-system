@@ -154,15 +154,71 @@ _create_mock_yq() {
     cat > "$MOCK_DIR/yq" <<'SCRIPT'
 #!/usr/bin/python3
 import yaml, json, sys
+
+query = ""
+exit_code = 0
+
+for arg in sys.argv[1:-1]:
+    if not arg.startswith('-'):
+        query = arg
+        break
+if not query and len(sys.argv) > 1 and not sys.argv[1].startswith('-'):
+    query = sys.argv[1]
+
 try:
     filepath = sys.argv[-1]
-    data = yaml.safe_load(open(filepath))
-    if isinstance(data, dict) and 'partitions' in data:
-        print(json.dumps(data['partitions']))
+    with open(filepath, 'r') as f:
+        data = yaml.safe_load(f)
+except Exception:
+    sys.exit(1)
+
+try:
+    if query == ".partitions":
+        if isinstance(data, dict) and 'partitions' in data and data['partitions'] is not None:
+            print(json.dumps(data['partitions']))
+        else:
+            print("null")
+            exit_code = 1
+    elif query == ".variables":
+        if isinstance(data, dict) and 'variables' in data and data['variables'] is not None:
+            pass
+        else:
+            print("null")
+            exit_code = 1
+    elif query == ".variables | keys | .[]":
+        if isinstance(data, dict) and 'variables' in data and isinstance(data['variables'], dict):
+            for k in data['variables'].keys():
+                print(k)
+        else:
+            exit_code = 1
+    elif query.startswith(".variables."):
+        parts = [p for p in query.split('.') if p]
+        val = data
+        for p in parts:
+            if isinstance(val, dict) and p in val:
+                val = val[p]
+            else:
+                val = None
+                break
+        if val is not None:
+            if isinstance(val, bool):
+                print(str(val).lower())
+            else:
+                print(val)
+        else:
+            print("null")
+            exit_code = 1
     else:
-        print("null")
+        if isinstance(data, dict) and 'partitions' in data:
+            print(json.dumps(data['partitions']))
+        else:
+            print("null")
+            exit_code = 1
 except Exception:
     print("null")
+    exit_code = 1
+
+sys.exit(exit_code)
 SCRIPT
     chmod +x "$MOCK_DIR/yq"
 }
