@@ -1065,10 +1065,8 @@ migasfree_sync_target() {
         if [ -f "$_MGI_JSON" ] && which jq >/dev/null 2>&1; then
             # 1. Communicate tags for new machine
             local _TAGS=$(jq -r '.tags // empty' "$_MGI_JSON")
-            if [ -n "$_TAGS" ]; then
-                mcs_log "      Image Tags: ${_TAGS}"
-                chroot "${_MOUNT}" migasfree tags --communicate ${_TAGS} >> "$MCS_LOG_FILE" 2>&1
-            fi
+            mcs_log "      Image Tags: ${_TAGS}"
+            chroot "${_MOUNT}" migasfree tags --communicate ${_TAGS} >> "$MCS_LOG_FILE" 2>&1
 
             # 2. Inject clone_date
             mcs_log "  [+] Injecting clone_date into $_MGI_JSON"
