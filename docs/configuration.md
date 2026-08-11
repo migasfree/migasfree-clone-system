@@ -62,6 +62,7 @@ settings:
 ```
 
 ### Config Properties
+
 - **`server`**: The server domain/URL where MCS will look for system projects.
 - **`server_ip`**: (Optional) Static IP address override for the server. Useful for lab environments without DNS.
 - **`keymap`**: The standard keyboard layout mapped at runtime (e.g. `es`, `us`).
@@ -69,7 +70,6 @@ settings:
 - **`promoted`**: Boolean (`true`/`false`) filter controlling which remote images appear in the TUI Network menus:
   - `true` (default): Shows only stable/promoted images (where `enabled` is not `false` in `catalog.json`).
   - `false`: Shows only non-promoted testing/freshly built images (where `enabled` is `false` in `catalog.json`).
-
 
 ## ⌨️ Keyboard Layouts
 
