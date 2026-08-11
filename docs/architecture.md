@@ -181,11 +181,11 @@ This enriched metadata is persisted in the cloned target filesystem, enabling bo
 
 ## 🌐 Networking
 
-MCS is configured to use DHCP on all interfaces by default. Upon boot, it attempts to:
+MCS is configured for universal network hardware compatibility and dynamic DHCP configuration on all available interfaces. Upon boot, it attempts to:
 
-1. Initialize networking.
-2. Get an IP address via DHCP.
-3. Check connectivity to the `SERVER_URL`.
+1. Auto-load network kernel drivers (`virtio_net`, `e1000`, `e1000e`, `r8169`, `tg3`, `igb`, `ixgbe`, `vmxnet3`) and associated hardware firmwares (`linux-firmware-intel`, `linux-firmware-realtek`, `linux-firmware-broadcom`, etc.).
+2. Dynamically scan `/sys/class/net/` and request IP addresses via DHCP (`udhcpc`) on all detected physical and virtual Ethernet interfaces via `/etc/local.d/dhcp-all-interfaces.start`.
+3. Check connectivity to the configured `SERVER_URL`.
 4. Update system certificates to allow secure image downloads via HTTPS.
 
 ## 🐧 Shell Compatibility & Tooling

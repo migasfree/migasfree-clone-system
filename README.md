@@ -1,6 +1,6 @@
 # Migasfree Clone System (MCS)
 
-[![Version](https://img.shields.io/badge/version-1.1-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-1.2-blue.svg)](VERSION)
 
 **Migasfree Clone System (MCS)** is a lightweight, Alpine Linux-based utility designed for rapid system imaging and cloning. It provides a simple Text User Interface (TUI) to manage, download, and deploy system images across BIOS and UEFI environments.
 

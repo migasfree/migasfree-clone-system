@@ -35,3 +35,8 @@ qemu-block-curl
 openssh-client-default
 pv
 gettext
+linux-firmware-none
+linux-firmware-intel
+linux-firmware-realtek
+linux-firmware-broadcom
+linux-firmware-other

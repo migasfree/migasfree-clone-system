@@ -1,0 +1,23 @@
+#!/bin/sh
+# Dynamic DHCP configuration for all available Ethernet interfaces.
+# This replaces static /etc/network/interfaces entries, avoiding boot
+# timeouts caused by 'auto' declarations for non-existent interfaces.
+
+# Ensure network kernel drivers are loaded
+for mod in e1000 e1000e r8169 tg3 igb ixgbe vmxnet3 virtio_net; do
+    modprobe "$mod" 2>/dev/null
+done
+
+for iface in /sys/class/net/*/; do
+    iface=$(basename "$iface")
+    [ "$iface" = "lo" ] && continue
+
+    # Skip non-Ethernet interfaces (wireless, virtual bridges, etc.)
+    [ -e "/sys/class/net/${iface}/device" ] || continue
+
+    ip link set "$iface" up 2>/dev/null
+    udhcpc -i "$iface" -b -q -t 5 -A 3 -s /usr/share/udhcpc/default.script 2>/dev/null &
+done
+
+# Wait briefly for at least one interface to get an IP
+sleep 3

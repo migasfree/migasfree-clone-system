@@ -41,8 +41,8 @@ Alternatively, you can modify the variables at the top of the **`/scripts/build.
 
 Any file placed in `defaults/overlay/` will be copied directly to the root of the generated system. This is the best way to:
 
-- Add custom scripts to `/usr/local/bin`.
-- Add pre-configured network settings in `/etc/network/interfaces`.
+- Add custom scripts to `/usr/local/bin` or `/etc/local.d/`.
+- Add custom network or kernel module configurations in `/etc/modules` or `/etc/network/interfaces`.
 - Include custom CA certificates in `/usr/local/share/ca-certificates/`.
 
 ## 🏃 Runtime Configuration

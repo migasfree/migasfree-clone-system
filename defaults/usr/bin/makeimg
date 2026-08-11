@@ -48,6 +48,7 @@ mount --bind /apks $MOUNTDIR/apks/
 echo "[+] Instalando paquetes..."
 chroot $MOUNTDIR /bin/sh -c "
   apk add --allow-untrusted /apks/*.apk
+  depmod -a \$(ls /lib/modules | head -n 1) 2>/dev/null || depmod -a
 "
 umount $MOUNTDIR/apks/
 rmdir $MOUNTDIR/apks/
@@ -69,9 +70,13 @@ echo "[+] Services on boot"
 chroot $MOUNTDIR /bin/sh -c "
 rc-update add networking boot
 rc-update add localmount boot
-# Try common udev service names
+rc-update add local default
+# Try common udev and module service names
 [ -f /etc/init.d/udev ] && rc-update add udev sysinit
 [ -f /etc/init.d/udev-trigger ] && rc-update add udev-trigger sysinit
+[ -f /etc/init.d/udev-settle ] && rc-update add udev-settle sysinit
+[ -f /etc/init.d/udev-postmount ] && rc-update add udev-postmount default
+[ -f /etc/init.d/modules ] && rc-update add modules boot
 "
 
 echo "[+] User root customize"

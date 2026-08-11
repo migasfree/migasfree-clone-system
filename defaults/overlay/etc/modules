@@ -1,0 +1,9 @@
+# Kernel modules to load at boot
+virtio_net
+e1000
+e1000e
+r8169
+tg3
+igb
+ixgbe
+vmxnet3
